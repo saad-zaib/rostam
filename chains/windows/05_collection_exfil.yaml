@@ -1,0 +1,15 @@
+name: "Collection → Staging → Exfiltration"
+description: "Discover sensitive files, archive, and stage for exfil"
+steps:
+  - technique: T1083
+    name: "File and Directory Discovery"
+    delay: 4
+  - technique: T1552.001
+    name: "Credentials In Files"
+    delay: 5
+  - technique: T1560.001
+    name: "Archive Collected Data — via Utility"
+    delay: 4
+  - technique: T1105
+    name: "Exfil via Ingress Tool Transfer"
+    delay: 3

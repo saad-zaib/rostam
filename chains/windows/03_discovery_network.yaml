@@ -1,0 +1,18 @@
+name: "Discovery → Network Scanning"
+description: "Local enumeration and network reconnaissance"
+steps:
+  - technique: T1016
+    name: "System Network Configuration Discovery"
+    delay: 4
+  - technique: T1049
+    name: "System Network Connections Discovery"
+    delay: 3
+  - technique: T1057
+    name: "Process Discovery"
+    delay: 3
+  - technique: T1018
+    name: "Remote System Discovery"
+    delay: 5
+  - technique: T1046
+    name: "Network Service Discovery"
+    delay: 3

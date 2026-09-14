@@ -1,0 +1,15 @@
+name: "Persistence → Privilege Escalation"
+description: "Registry run keys and scheduled tasks, then UAC bypass"
+steps:
+  - technique: T1059.001
+    name: "PowerShell Execution"
+    delay: 4
+  - technique: T1053.005
+    name: "Scheduled Task Persistence"
+    delay: 5
+  - technique: T1547.001
+    name: "Registry Run Key Persistence"
+    delay: 4
+  - technique: T1548.002
+    name: "UAC Bypass"
+    delay: 3

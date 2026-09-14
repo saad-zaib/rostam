@@ -1,0 +1,15 @@
+name: "Persistence → Privilege Escalation"
+description: "Cron-based persistence then SUID/permissions abuse for privesc"
+steps:
+  - technique: T1059.004
+    name: "Unix Shell Script Execution"
+    delay: 4
+  - technique: T1053.003
+    name: "Cron Job Persistence"
+    delay: 5
+  - technique: T1222.002
+    name: "File Permissions Modification — Linux"
+    delay: 4
+  - technique: T1548.001
+    name: "Setuid and Setgid Abuse"
+    delay: 3

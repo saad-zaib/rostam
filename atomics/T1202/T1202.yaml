@@ -1,0 +1,109 @@
+attack_technique: T1202
+display_name: Indirect Command Execution
+atomic_tests:
+- name: Indirect Command Execution - pcalua.exe
+  auto_generated_guid: cecfea7a-5f03-4cdd-8bc8-6f7c22862440
+  description: |
+    The Program Compatibility Assistant (pcalua.exe) may invoke the execution of programs and commands from a Command-Line Interface.
+    [Reference](https://twitter.com/KyleHanslovan/status/912659279806640128)
+    Upon execution, calc.exe should open
+  supported_platforms:
+  - windows
+  input_arguments:
+    payload_path:
+      description: Path to payload
+      type: path
+      default: C:\Windows\System32\calc.exe
+    process:
+      description: Process to execute
+      type: string
+      default: calc.exe
+  executor:
+    command: |
+      pcalua.exe -a #{process}
+      pcalua.exe -a #{payload_path}
+    name: command_prompt
+- name: Indirect Command Execution - forfiles.exe
+  auto_generated_guid: 8b34a448-40d9-4fc3-a8c8-4bb286faf7dc
+  description: |
+    forfiles.exe may invoke the execution of programs and commands from a Command-Line Interface.
+    [Reference](https://github.com/LOLBAS-Project/LOLBAS/blob/master/yml/OSBinaries/Forfiles.yml)
+    "This is basically saying for each occurrence of notepad.exe in c:\windows\system32 run calc.exe"
+    Upon execution calc.exe will be opened.
+  supported_platforms:
+  - windows
+  input_arguments:
+    process:
+      description: Process to execute
+      type: string
+      default: calc.exe
+  executor:
+    command: |
+      forfiles /p c:\windows\system32 /m notepad.exe /c #{process}
+    name: command_prompt
+- name: Indirect Command Execution - conhost.exe
+  auto_generated_guid: cf3391e0-b482-4b02-87fc-ca8362269b29
+  description: |
+    conhost.exe refers to a host process for the console window. It provide an interface between command prompt and Windows explorer.
+    Executing it through command line can create process ancestry anomalies
+    [Reference] (http://www.hexacorn.com/blog/2020/05/25/how-to-con-your-host/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    process:
+      description: Process to execute
+      type: string
+      default: notepad.exe
+  executor:
+    command: |
+      conhost.exe "#{process}"
+    name: command_prompt
+- name: Indirect Command Execution - Scriptrunner.exe
+  auto_generated_guid: 0fd14730-6226-4f5e-8d67-43c65f1be940
+  description: |-
+    The "ScriptRunner.exe" binary can be abused to proxy execution through it and bypass possible whitelisting. Upon test execution, calc.exe should open
+    Reference: https://x.com/NickTyrer/status/914234924655312896
+  supported_platforms:
+  - windows
+  input_arguments:
+    payload_path:
+      description: Path to the executable
+      type: String
+      default: C:\Windows\System32\calc.exe
+  executor:
+    command: Scriptrunner.exe -appvscript "#{payload_path}"
+    cleanup_command: 
+    name: powershell
+    elevation_required: false
+- name: Indirect Command Execution - RunMRU Dialog
+  auto_generated_guid: de323a93-2f18-4bd5-ba60-d6fca6aeff76
+  description: |
+    Simulates execution of commands via the Windows Run dialog (Win+R) by programmatically opening the Run dialog, 
+    copying a command to clipboard, and automating the paste and execution. This generates artifacts in the RunMRU registry key,
+    which is commonly abused by threat actors to execute malicious commands disguised as CAPTCHA verification steps.
+    Upon execution, a test PowerShell command will be executed through the Run dialog.
+  supported_platforms:
+  - windows
+  input_arguments:
+    command:
+      description: Command to execute via Run dialog
+      type: string
+      default: calc.exe
+  executor:
+    name: powershell
+    command: |
+      # Copy command to clipboard
+      Set-Clipboard -Value '#{command}'
+
+      # Open Run dialog
+      Start-Process -FilePath "powershell" -ArgumentList "-c (New-Object -ComObject 'Shell.Application').FileRun()" -WindowStyle Hidden
+
+      # Wait for Run dialog to open
+      Start-Sleep -Seconds 1
+
+      # Paste command and execute
+      Add-Type -AssemblyName System.Windows.Forms
+      [System.Windows.Forms.SendKeys]::SendWait('^v')
+      Start-Sleep -Milliseconds 500
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  

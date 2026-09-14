@@ -1,0 +1,18 @@
+name: "Execution → Persistence → Defense Evasion"
+description: "Download tool, persist via schtasks, masquerade, clear event logs"
+steps:
+  - technique: T1105
+    name: "Ingress Tool Transfer"
+    delay: 5
+  - technique: T1059.001
+    name: "PowerShell Execution"
+    delay: 4
+  - technique: T1053.005
+    name: "Scheduled Task Persistence"
+    delay: 5
+  - technique: T1036.005
+    name: "Masquerading — Match Legitimate Name"
+    delay: 4
+  - technique: T1070.001
+    name: "Clear Windows Event Logs"
+    delay: 3

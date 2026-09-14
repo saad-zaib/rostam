@@ -1,0 +1,16 @@
+Rostam — ATT&CK Kill-Chain Telemetry Generator
+================================================
+Generates real host telemetry for MITRE ATT&CK technique simulation.
+Run directly on the target — no remote orchestration needed.
+
+  Linux:    bash run.sh
+  Windows:  run.bat
+
+The bootstrap script installs Python 3 + PyYAML if missing, then launches
+the interactive menu. First run downloads test definitions (~50 MB).
+
+Choose prebuilt chains, build custom chains, or run individual techniques.
+All executions are logged to logs/ as JSONL for detection scoring.
+
+Add custom chains: drop YAML files in chains/linux/ or chains/windows/.
+See existing chain files for the format.

@@ -1,0 +1,504 @@
+attack_technique: T1560.001
+display_name: 'Archive Collected Data: Archive via Utility'
+atomic_tests:
+- name: Compress Data for Exfiltration With Rar
+  auto_generated_guid: 02ea31cb-3b4c-4a2d-9bf1-e4e70ebcf5d0
+  description: |
+    An adversary may compress data (e.g., sensitive documents) that is collected prior to exfiltration.
+    When the test completes you should find the txt files from the %USERPROFILE% directory compressed in a file called T1560.001-data.rar in the %USERPROFILE% directory 
+  supported_platforms:
+  - windows
+  input_arguments:
+    input_path:
+      description: Path that should be compressed into our output file
+      type: path
+      default: '%USERPROFILE%'
+    file_extension:
+      description: Extension of files to compress
+      type: string
+      default: ".txt"
+    output_file:
+      description: Path where resulting compressed data should be placed
+      type: path
+      default: '%USERPROFILE%\T1560.001-data.rar'
+    rar_installer:
+      description: Winrar installer
+      type: path
+      default: '%TEMP%\winrar.exe'
+    rar_exe:
+      description: The RAR executable from Winrar
+      type: path
+      default: '%programfiles%/WinRAR/Rar.exe'
+  dependencies:
+  - description: |
+      Rar tool must be installed at specified location (#{rar_exe})
+    prereq_command: |
+      if not exist "#{rar_exe}" (exit /b 1)
+    get_prereq_command: |
+      echo Downloading Winrar installer
+      bitsadmin /transfer myDownloadJob /download /priority normal "https://www.win-rar.com/fileadmin/winrar-versions/winrar/th/winrar-x64-580.exe" #{rar_installer}
+      #{rar_installer} /S
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      "#{rar_exe}" a -r #{output_file} #{input_path}\*#{file_extension}
+    cleanup_command: |
+      del /f /q /s #{output_file} >nul 2>&1
+- name: Compress Data and lock with password for Exfiltration with winrar
+  auto_generated_guid: 8dd61a55-44c6-43cc-af0c-8bdda276860c
+  description: |
+    Note: Requires winrar installation
+    rar a -p"blue" hello.rar (VARIANT)
+  supported_platforms:
+  - windows
+  input_arguments:
+    rar_installer:
+      description: Winrar installer
+      type: path
+      default: '%TEMP%\winrar.exe'
+    rar_exe:
+      description: The RAR executable from Winrar
+      type: path
+      default: '%programfiles%/WinRAR/Rar.exe'
+  dependencies:
+  - description: |
+      Rar tool must be installed at specified location (#{rar_exe})
+    prereq_command: |
+      if not exist "#{rar_exe}" (exit /b 1)
+    get_prereq_command: |
+      echo Downloading Winrar installer
+      bitsadmin /transfer myDownloadJob /download /priority normal "https://www.win-rar.com/fileadmin/winrar-versions/winrar/th/winrar-x64-580.exe" #{rar_installer}
+      #{rar_installer} /S
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      mkdir .\tmp\victim-files
+      cd .\tmp\victim-files
+      echo "This file will be encrypted" > .\encrypted_file.txt
+      "#{rar_exe}" a -hp"blue" hello.rar
+      dir
+- name: Compress Data and lock with password for Exfiltration with winzip
+  auto_generated_guid: 01df0353-d531-408d-a0c5-3161bf822134
+  description: |
+    Note: Requires winzip installation
+    wzzip sample.zip -s"blueblue" *.txt (VARIANT)
+  supported_platforms:
+  - windows
+  input_arguments:
+    winzip_exe:
+      description: Path to installed Winzip executable
+      type: path
+      default: "%ProgramFiles%\\WinZip\\winzip64.exe"
+    winzip_url:
+      description: Path to download Windows Credential Editor zip file
+      type: url
+      default: https://download.winzip.com/gl/nkln/winzip24-home.exe
+    winzip_hash:
+      description: File hash of the Windows Credential Editor zip file
+      type: string
+      default: B59DB592B924E963C21DA8709417AC0504F6158CFCB12FE5536F4A0E0D57D7FB
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Winzip must be installed
+    prereq_command: |
+      cmd /c 'if not exist "#{winzip_exe}" (echo 1) else (echo 0)'
+    get_prereq_command: |
+      IEX(IWR "https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/Public/Invoke-WebRequestVerifyHash.ps1" -UseBasicParsing)
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      if(Invoke-WebRequestVerifyHash "#{winzip_url}" "PathToAtomicsFolder\..\ExternalPayloads\winzip.exe" #{winzip_hash}){
+        Write-Host Follow the installation prompts to continue
+        cmd /c "PathToAtomicsFolder\..\ExternalPayloads\winzip.exe"
+      }
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      path=%path%;"C:\Program Files (x86)\winzip"
+      mkdir .\tmp\victim-files
+      cd .\tmp\victim-files
+      echo "This file will be encrypted" > .\encrypted_file.txt
+      "#{winzip_exe}" -min -a -s"hello" archive.zip *
+      dir
+- name: Compress Data and lock with password for Exfiltration with 7zip
+  auto_generated_guid: d1334303-59cb-4a03-8313-b3e24d02c198
+  description: |
+    Note: This test requires 7zip installation
+  supported_platforms:
+  - windows
+  input_arguments:
+    7zip_installer:
+      description: 7zip installer
+      type: path
+      default: "%TEMP%\\7zip.exe"
+    7zip_exe:
+      description: Path to installed 7zip executable
+      type: path
+      default: "%ProgramFiles%\\7-zip\\7z.exe"
+  dependencies:
+  - description: |
+      7zip tool must be installed at specified location (#{7zip_exe})
+    prereq_command: |
+      if not exist "#{7zip_exe}" (exit /b 1)
+    get_prereq_command: |
+      echo Downloading 7-zip installer
+      bitsadmin /transfer myDownloadJob /download /priority normal "https://www.7-zip.org/a/7z2301-x64.exe" #{7zip_installer}
+      #{7zip_installer} /S
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      mkdir $PathToAtomicsFolder\T1560.001\victim-files
+      cd $PathToAtomicsFolder\T1560.001\victim-files
+      echo "This file will be encrypted" > .\encrypted_file.txt
+      "#{7zip_exe}" u archive.7z *txt -pblue
+      dir
+    cleanup_command: |
+      rmdir /s /Q $PathToAtomicsFolder\T1560.001\victim-files >nul 2>&1
+- name: Data Compressed - nix - zip
+  auto_generated_guid: c51cec55-28dd-4ad2-9461-1eacbc82c3a0
+  description: |
+    An adversary may compress data (e.g., sensitive documents) that is collected prior to exfiltration. This test uses standard zip compression.
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    input_files:
+      description: Path that should be compressed into our output file, may include wildcards
+      type: path
+      default: /var/log/{w,b}tmp
+    output_file:
+      description: Path that should be output as a zip archive
+      type: path
+      default: $HOME/data.zip
+  dependencies:
+  - description: |
+      Files to zip must exist (#{input_files})
+    prereq_command: |
+      if [ $(ls #{input_files} | wc -l) > 0 ] && [ -x $(which zip) ] ; then exit 0; else exit 1; fi;
+    get_prereq_command: |
+      (which yum && yum -y install epel-release zip)||(which apt-get && apt-get install -y zip)
+      echo Please set input_files argument to include files that exist
+  executor:
+    name: bash
+    elevation_required: true
+    command: |
+      zip #{output_file} #{input_files}
+    cleanup_command: |
+      rm -f #{output_file}
+- name: Data Compressed - nix - gzip Single File
+  auto_generated_guid: cde3c2af-3485-49eb-9c1f-0ed60e9cc0af
+  description: |
+    An adversary may compress data (e.g., sensitive documents) that is collected prior to exfiltration. This test uses standard gzip compression.
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    input_file:
+      description: Path that should be compressed
+      type: path
+      default: $HOME/victim-gzip.txt
+    input_content:
+      description: contents of compressed files if file does not already exist. default contains test credit card and social security number
+      type: string
+      default: 'confidential! SSN: 078-05-1120 - CCN: 4000 1234 5678 9101'
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      test -e #{input_file} && gzip -k #{input_file} || (echo '#{input_content}' >> #{input_file}; gzip -k #{input_file})
+    cleanup_command: |
+      rm -f #{input_file}.gz
+- name: Data Compressed - nix - tar Folder or File
+  auto_generated_guid: 7af2b51e-ad1c-498c-aca8-d3290c19535a
+  description: |
+    An adversary may compress data (e.g., sensitive documents) that is collected prior to exfiltration. This test uses standard gzip compression.
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    input_file_folder:
+      description: Path that should be compressed
+      type: path
+      default: '$HOME/$USERNAME'
+    output_file:
+      description: File that should be output
+      type: path
+      default: '$HOME/data.tar.gz'
+  dependencies:
+  - description: |
+      Folder to zip must exist (#{input_file_folder})
+    prereq_command: |
+      test -e #{input_file_folder}
+    get_prereq_command: |
+      mkdir -p #{input_file_folder} && touch #{input_file_folder}/file1
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      tar -cvzf #{output_file} #{input_file_folder}
+    cleanup_command: |
+      rm -f #{output_file}
+- name: Data Encrypted with zip and gpg symmetric
+  auto_generated_guid: 0286eb44-e7ce-41a0-b109-3da516e05a5f
+  description: |
+    Encrypt data for exiltration
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    test_folder:
+      description: Path used to store files.
+      type: path
+      default: /tmp/T1560
+    test_file:
+      description: Temp file used to store encrypted data.
+      type: path
+      default: T1560
+    encryption_password:
+      description: Password used to encrypt data.
+      type: string
+      default: InsertPasswordHere
+  dependency_executor_name: sh
+  dependencies:
+  - description: gpg and zip are required to run the test.
+    prereq_command: |
+      if [ ! -x "$(command -v gpg)" ] || [ ! -x "$(command -v zip)" ]; then exit 1; fi;
+    get_prereq_command: |
+      (which pkg && pkg install -y gnupg zip)||(which yum && yum -y install epel-release zip gpg)||(which apt-get && apt-get install -y zip gpg)
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      mkdir -p #{test_folder}
+      cd #{test_folder}; touch a b c d e f g
+      zip --password "#{encryption_password}" #{test_folder}/#{test_file} ./*
+      echo "#{encryption_password}" | gpg --batch --yes --passphrase-fd 0 --output #{test_folder}/#{test_file}.zip.gpg -c #{test_folder}/#{test_file}.zip
+      ls -l #{test_folder}
+    cleanup_command: |
+      rm -Rf #{test_folder}
+- name: 'Encrypts collected data with AES-256 and Base64'
+  auto_generated_guid: a743e3a6-e8b2-4a30-abe7-ca85d201b5d3
+  description: |-
+    An adversary may compress all the collected data, encrypt and send them to a C2 server using base64 encoding. 
+    This atomic test tries to emulate the behaviour of the FLEXIROOT backdoor to archive the collected data. FLEXIROOT typically utilizes AES encryption and base64 encoding to transfer the encrypted data to the C2 server. 
+    In this test, standard zip compression and the OpenSSL library are used to encrypt the compressed data.
+    https://attack.mitre.org/versions/v7/software/S0267/
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    input_folder:
+      description: Path to the folder used to store the test files
+      type: path
+      default: /tmp/t1560
+    input_file:
+      description: 'Name of the compressed and encrypted files'
+      type: string
+      default: t1560_data
+    enc_pass:
+      description: Password used to encrypt the data
+      type: string
+      default: atomic_enc_pass
+  dependency_executor_name: bash
+  dependencies:
+  - description: The folder and test files must exist
+    prereq_command: 'if [ ! -d #{input_folder} ]; then exit 1; else exit 0; fi;'
+    get_prereq_command: 'if [ ! -d #{input_folder} ]; then mkdir -p #{input_folder}; cd #{input_folder}; touch {a..z}.data; fi;'
+  executor:
+    command: |-
+      zip -r  #{input_folder}/#{input_file}.zip #{input_folder}
+      openssl enc -aes-256-cbc -pass pass:#{enc_pass} -p -in #{input_folder}/#{input_file}.zip -out #{input_folder}/#{input_file}.enc 
+      cat #{input_folder}/#{input_file}.enc | base64
+    cleanup_command: 'rm -rf #{input_folder}'
+    name: bash
+    elevation_required: false
+- name: ESXi - Remove Syslog remote IP
+  auto_generated_guid: 36c62584-d360-41d6-886f-d194654be7c2
+  description: |
+    An adversary may edit the syslog config to remove the loghost in order to prevent or redirect logs being received by SIEM.
+  supported_platforms:
+  - windows
+  input_arguments:
+    vm_host:
+      description: Specify the host name of the ESXi Server
+      type: string
+      default: atomic.local
+    plink_file:
+      description: Path to Putty
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\plink.exe'
+    username:
+      description: Username used to log into ESXi
+      type: string
+      default: root
+    password:
+      description: password used to log into ESXI
+      type: string
+      default: n/a
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      The plink executable must be found in the ExternalPayloads folder.
+    prereq_command: |
+      if (Test-Path "#{plink_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "#{plink_file}"
+  executor:
+    command: |
+      # Extract line with IP address from the syslog configuration output
+      #{plink_file} -ssh #{vm_host} -l #{username} -pw #{password} -m PathToAtomicsFolder\..\atomics\T1560.001\src\esxi_get_loghost.txt | findstr /r "[0-9]*\.[0-9]*\.[0-9]*\." > c:\temp\loghost.txt
+      
+      # Replace the IP with "0"
+      #{plink_file} -ssh #{vm_host} -l #{username} -pw #{password} -m PathToAtomicsFolder\..\atomics\T1560.001\src\esxi_remove_loghost.txt
+      
+      # Extract the IP from the line extracted from findstr
+      $inputFilePath = "c:\temp\loghost.txt"
+      $outputFilePath = "c:\temp\loghost_ip.txt"
+
+      $fileContent = Get-Content -Path $inputFilePath -Raw
+
+      if ([string]::IsNullOrWhiteSpace($fileContent)) {
+          Write-Host "The content is $fileContent"
+          Write-Host "The file is empty"
+      } else {
+          # Use a regular expression to extract IP addresses
+          $ipAddresses = [regex]::Matches($fileContent, '(udp|tcp):\/\/[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.*').Value
+          
+          $output = "esxcli system syslog config set --loghost=" + $ipAddresses
+
+          $output | Out-File -FilePath $outputFilePath -Encoding ascii
+          
+          Write-Host "IP addresses extracted and saved to $outputFilePath"
+      }
+
+    cleanup_command: |
+      # Re-add the initially extracted IP
+      #{plink_file} -ssh #{vm_host} -l #{username} -pw #{password} -m c:\temp\loghost_ip.txt
+      
+      rm c:\temp\loghost_ip.txt
+      rm c:\temp\loghost.txt
+    name: powershell
+    elevation_required: true
+- name: Compress a File for Exfiltration using Makecab
+  auto_generated_guid: 2a7bc405-9555-4f49-ace2-b2ae2941d629
+  description: |
+    An adversary may compress data using Makecab (in-built Windows binary) that is collected prior to exfiltration.
+    [reference](https://unit42.paloaltonetworks.com/exchange-server-credential-harvesting/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    input_file:
+      description: Path to source file for compression
+      type: path
+      default: 'C:\Temp\sam.hiv'
+    output_file:
+      description: Path of the CAB file
+      type: path
+      default: 'C:\Temp\art.zip'
+  dependencies:
+  - description: |
+      A sample file for compression must be located at specified location (#{input_file})
+    prereq_command: |
+      if not exist "#{input_file}" (exit /b 1)
+    get_prereq_command: |
+      fsutil file createnew c:\Temp\sam.hiv 10485760
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      makecab.exe #{input_file} #{output_file}
+    cleanup_command: |
+      del #{output_file}
+
+- name: Copy and Compress AppData Folder
+  auto_generated_guid: 05e8942e-f04f-460a-b560-f7781257feec
+  description: |
+    Copies the AppData folder, compresses it, and cleans up temporary files.
+  supported_platforms:
+    - windows
+  input_arguments:
+    destination_folder:
+      type: Path
+      default: $env:USERPROFILE\Desktop\AppDataCopy
+      description: Temporary copy location
+    zip_file_path:
+      type: Path
+      default: $env:USERPROFILE\Desktop\AppDataBackup.zip
+      description: ZIP archive path
+  dependencies:
+    - description: Requires admin and .NET compression libraries
+      prereq_command: |
+        if (-not ([Security.Principal.WindowsPrincipal] `
+            [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+            [Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }
+        if (-not (Test-Path "$env:USERPROFILE\AppData")) { exit 1 }
+      get_prereq_command: |
+        Run PowerShell as Administrator and ensure .NET compression assemblies are available.
+  executor:
+    name: powershell
+    elevation_required: true
+    command: |
+      $AppData="$env:USERPROFILE\AppData"
+      $Copy="#{destination_folder}"
+      $Zip="#{zip_file_path}"
+
+      if (Test-Path $Copy) { Remove-Item $Copy -Recurse -Force }
+      New-Item -ItemType Directory -Path $Copy | Out-Null
+
+      Get-ChildItem $AppData -Recurse -Force | ForEach-Object {
+        $rel = $_.FullName.Substring($AppData.Length + 1)
+        $dest = Join-Path $Copy $rel
+        if ($_.PSIsContainer) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
+        else { Copy-Item $_.FullName -Destination $dest -Force -ErrorAction SilentlyContinue }
+      }
+
+      Add-Type -AssemblyName System.IO.Compression.FileSystem
+      [System.IO.Compression.ZipFile]::CreateFromDirectory($Copy, $Zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+- name: Data Compressed - macOS - ditto Archive of a Sensitive Directory
+  auto_generated_guid: 2794f321-55c4-4484-9eef-0557996f715a
+  description: |
+    Uses `ditto`, Apple's own copy and archive utility, to compress a directory holding sensitive data into a
+    single zip archive, which is the staging step that normally precedes exfiltration.
+
+    `ditto` is the tool macOS infostealers reach for rather than `zip` or `tar`, because it preserves resource
+    forks and extended attributes, so the archive survives a round trip with macOS metadata intact. CyberProof's
+    AMOS analysis describes the malware aggregating Keychain files, browser credentials and wallet data and
+    compressing them "into a single archive named `osalogging.zip` within the `/tmp` directory using native macOS
+    utilities like `ditto`". [LOOBins](https://www.loobins.io/binaries/ditto/) lists the same
+    `ditto -c -k --sequesterRsrc --keepParent` form under Collection and Exfiltration, and notes there was no
+    detection content for the binary at the time of writing.
+
+    The default source is the user's Keychains directory, which exists on every macOS install and is the highest
+    value target of the real technique. Both the source and the destination are input arguments, so the test can
+    be pointed at a directory of your choosing instead.
+
+    Upon successful execution, a zip archive is created at the output path and its size is printed.
+  supported_platforms:
+  - macos
+  input_arguments:
+    source_path:
+      description: Directory that gets archived
+      type: path
+      default: $HOME/Library/Keychains
+    output_file:
+      description: Path of the archive that is created
+      type: path
+      default: /tmp/T1560.001_ditto_archive.zip
+  dependencies:
+  - description: |
+      The source directory #{source_path} must exist
+    prereq_command: |
+      if [ -d "#{source_path}" ]; then exit 0; else exit 1; fi
+    get_prereq_command: |
+      mkdir -p #{source_path}
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      ditto -c -k --sequesterRsrc --keepParent "#{source_path}" "#{output_file}"
+    cleanup_command: |
+      rm -f "#{output_file}"

@@ -1,0 +1,21 @@
+name: "Recon → Credential Access"
+description: "System enumeration then credential discovery and LSASS dumping"
+steps:
+  - technique: T1082
+    name: "System Information Discovery"
+    delay: 5
+  - technique: T1087.001
+    name: "Account Discovery — Local Accounts"
+    delay: 3
+  - technique: T1069.001
+    name: "Permission Groups Discovery — Local Groups"
+    delay: 3
+  - technique: T1083
+    name: "File and Directory Discovery"
+    delay: 4
+  - technique: T1552.001
+    name: "Credentials In Files"
+    delay: 5
+  - technique: T1003.001
+    name: "Credential Dumping — LSASS Memory"
+    delay: 3

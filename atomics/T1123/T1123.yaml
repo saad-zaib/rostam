@@ -1,0 +1,69 @@
+attack_technique: T1123
+display_name: Audio Capture
+atomic_tests:
+- name: using device audio capture commandlet
+  auto_generated_guid: 9c3ad250-b185-4444-b5a9-d69218a10c95
+  description: |
+    Uses AudioDeviceCmdlets to set the default recording device and simulate audio capture.
+    Module repo: [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets)
+  supported_platforms:
+  - windows
+  dependencies:
+    - description: AudioDeviceCmdlets module must be installed
+      prereq_command: |
+        if (Get-Module -ListAvailable -Name AudioDeviceCmdlets) { exit 0 } else { exit 1 } 
+      get_prereq_command: |
+        Install with: Install-Module -Name AudioDeviceCmdlets -Force" 
+  executor:
+    command: |
+      $mic = Get-AudioDevice -Recording
+      Set-AudioDevice -ID $mic.ID
+      Start-Sleep -Seconds 5
+    name: powershell
+
+- name: Registry artefact when application use microphone
+  auto_generated_guid: 7a21cce2-6ada-4f7c-afd9-e1e9c481e44a
+  description: |
+    [can-you-track-processes-accessing-the-camera-and-microphone](https://svch0st.medium.com/can-you-track-processes-accessing-the-camera-and-microphone-7e6885b37072)
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged\C:#Windows#Temp#atomic.exe /v LastUsedTimeStart /t REG_BINARY /d a273b6f07104d601 /f
+      reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged\C:#Windows#Temp#atomic.exe /v LastUsedTimeStop /t REG_BINARY /d 96ef514b7204d601 /f
+    cleanup_command: |
+      reg DELETE HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged\C:#Windows#Temp#atomic.exe /f
+    name: command_prompt
+
+- name: using Quicktime Player
+  auto_generated_guid: c7a0bb71-70ce-4a53-b115-881f241b795b
+  description: |
+    Use AppleScript to get Quicktime Player to record an audio file from the default microphone.
+
+    Should create a non-empty m4a file with sound from the microphone.
+
+    - requires Automation permissions but no additional microphone permissions
+    - saves file in /tmp by default. Other locations likely to require more permissions.
+  supported_platforms:
+  - macos
+  input_arguments:
+    filename:
+      description: Location of the script
+      type: path
+      default: PathToAtomicsFolder/T1123/src/T1123.sh
+    audiofile:
+      description: Location of the recorded audio file
+      type: path
+      default: /tmp/T1123.m4a
+    duration:
+      description: Length of recording to make in seconds
+      type: integer
+      default: 5
+  executor:
+    command: |
+      sh #{filename} #{audiofile} #{duration}
+    cleanup_command: |
+      if test -w #{audiofile}; then
+        rm #{audiofile}
+      fi
+    name: sh

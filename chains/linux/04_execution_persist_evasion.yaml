@@ -1,0 +1,21 @@
+name: "Execution → Persistence → Defense Evasion"
+description: "Download payload, execute, persist via cron, then cover tracks"
+steps:
+  - technique: T1105
+    name: "Ingress Tool Transfer"
+    delay: 5
+  - technique: T1059.004
+    name: "Unix Shell Execution"
+    delay: 4
+  - technique: T1053.003
+    name: "Cron Job Persistence"
+    delay: 5
+  - technique: T1036.005
+    name: "Masquerading — Match Legitimate Name"
+    delay: 4
+  - technique: T1070.004
+    name: "Indicator Removal — File Deletion"
+    delay: 3
+  - technique: T1070.003
+    name: "Clear Command History"
+    delay: 3

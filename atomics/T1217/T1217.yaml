@@ -1,0 +1,177 @@
+attack_technique: T1217
+display_name: Browser Bookmark Discovery
+atomic_tests:
+- name: List Mozilla Firefox Bookmark Database Files on FreeBSD/Linux
+  auto_generated_guid: 3a41f169-a5ab-407f-9269-abafdb5da6c2
+  description: |
+    Searches for Mozilla Firefox's places.sqlite file (on FreeBSD or Linux distributions) that contains bookmarks and lists any found instances to a text file.
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: Path where captured results will be placed.
+      type: path
+      default: /tmp/T1217-Firefox.txt
+  executor:
+    command: |
+      find / -path "*.mozilla/firefox/*/places.sqlite" 2>/dev/null -exec echo {} >> #{output_file} \;
+      cat #{output_file} 2>/dev/null
+    cleanup_command: |
+      rm -f #{output_file} 2>/dev/null
+    name: sh
+- name: List Mozilla Firefox Bookmark Database Files on macOS
+  auto_generated_guid: 1ca1f9c7-44bc-46bb-8c85-c50e2e94267b
+  description: |
+    Searches for Mozilla Firefox's places.sqlite file (on macOS) that contains bookmarks and lists any found instances to a text file.
+  supported_platforms:
+  - macos
+  input_arguments:
+    output_file:
+      description: Path where captured results will be placed.
+      type: path
+      default: /tmp/T1217_Firefox.txt
+  executor:
+    command: |
+      find / -path "*/Firefox/Profiles/*/places.sqlite" -exec echo {} >> #{output_file} \;
+      cat #{output_file} 2>/dev/null
+    cleanup_command: |
+      rm -f #{output_file} 2>/dev/null
+    name: sh
+- name: List Google Chrome Bookmark JSON Files on macOS
+  auto_generated_guid: b789d341-154b-4a42-a071-9111588be9bc
+  description: |
+    Searches for Google Chrome's Bookmark file (on macOS) that contains bookmarks in JSON format and lists any found instances to a text file.
+  supported_platforms:
+  - macos
+  input_arguments:
+    output_file:
+      description: Path where captured results will be placed.
+      type: path
+      default: /tmp/T1217-Chrome.txt
+  executor:
+    command: |
+      find / -path "*/Google/Chrome/*/Bookmarks" -exec echo {} >> #{output_file} \;
+      cat #{output_file} 2>/dev/null
+    cleanup_command: |
+      rm -f #{output_file} 2>/dev/null
+    name: sh
+- name: List Google Chromium Bookmark JSON Files on FreeBSD
+  auto_generated_guid: 88ca025b-3040-44eb-9168-bd8af22b82fa
+  description: |
+    Searches for Google Chromium's Bookmark file (on FreeBSD) that contains bookmarks in JSON format and lists any found instances to a text file.
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: Path where captured results will be placed.
+      type: path
+      default: /tmp/T1217-Chrome.txt
+  executor:
+    command: |
+      find / -path "*/.config/chromium/*/Bookmarks" -exec echo {} >> #{output_file} \;
+      cat #{output_file} 2>/dev/null
+    cleanup_command: |
+      rm -f #{output_file} 2>/dev/null
+    name: sh
+- name: List Google Chrome / Opera Bookmarks on Windows with powershell
+  auto_generated_guid: faab755e-4299-48ec-8202-fc7885eb6545
+  description: |
+    Searches for Google Chrome's and Opera's Bookmarks file (on Windows distributions) that contains bookmarks.
+    Upon execution, paths that contain bookmark files will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      Get-ChildItem -Path C:\Users\ -Filter Bookmarks -Recurse -ErrorAction SilentlyContinue -Force
+    name: powershell
+- name: List Google Chrome / Edge Chromium Bookmarks on Windows with command prompt
+  auto_generated_guid: 76f71e2f-480e-4bed-b61e-398fe17499d5
+  description: |
+    Searches for Google Chromes's and Edge Chromium's Bookmarks file (on Windows distributions) that contains bookmarks.
+    Upon execution, paths that contain bookmark files will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      where /R C:\Users\ Bookmarks
+    name: command_prompt
+- name: List Mozilla Firefox bookmarks on Windows with command prompt
+  auto_generated_guid: 4312cdbc-79fc-4a9c-becc-53d49c734bc5
+  description: |
+    Searches for Mozilla Firefox bookmarks file (on Windows distributions) that contains bookmarks in a SQLITE database.
+    Upon execution, paths that contain bookmark files will be displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      where /R C:\Users\ places.sqlite
+    name: command_prompt
+- name: List Internet Explorer Bookmarks using the command prompt
+  auto_generated_guid: 727dbcdb-e495-4ab1-a6c4-80c7f77aef85
+  description: This test will list the bookmarks for Internet Explorer that are found in the Favorites folder
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      dir /s /b %USERPROFILE%\Favorites
+    name: command_prompt
+- name: List Safari Bookmarks on MacOS
+  auto_generated_guid: 5fc528dd-79de-47f5-8188-25572b7fafe0
+  description: |
+    This test searches for Safari's Bookmarks file (on macOS) and lists any found instances to a text file.
+  supported_platforms:
+  - macos
+  input_arguments:
+    output_file:
+      description: Path where captured results will be placed.
+      type: path
+      default: /tmp/T1217-Safari.txt
+  executor:
+    command: |
+      find / -path "*/Safari/Bookmarks.plist" 2>/dev/null >> #{output_file} 
+      cat #{output_file} 
+    cleanup_command: |
+      rm -f #{output_file} 2>/dev/null
+    name: sh
+
+- name: Extract Edge Browsing History
+  auto_generated_guid: 74094120-e1f5-47c9-b162-a418a0f624d5
+  description: |
+    This test will extract Microsoft Edge browser's history of current user
+  supported_platforms:
+  - windows
+  input_arguments:
+    history_path:
+      description: Microsoft Edge browser history file path
+      type: String
+      default: $Env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\History
+    dest_path:
+      description: Target file path to where the history to be extracted
+      type: String
+      default: $Env:USERPROFILE\Downloads\edgebrowsinghistory.txt
+  executor:
+    command: |
+      $URL_Regex = '(htt(p|s))://([\w-]+\.)+[\w-]+(/[\w- ./?%&=]*)*?'
+      $History = Get-Content -Path "#{history_path}" | Select-String -AllMatches $URL_Regex | ForEach-Object { $_.Matches.Value } | Sort -Unique
+      $History | Out-File -FilePath "#{dest_path}"
+    cleanup_command: |
+      Remove-Item -Path "#{dest_path}"
+    name: powershell
+    elevation_required: true
+
+- name: Extract chrome Browsing History
+  auto_generated_guid: cfe6315c-4945-40f7-b5a4-48f7af2262af
+  description: |
+    This test will extract browsing history of the chrome user
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      $Username = (whoami).Split('\')[1]
+      $URL_Regex = '(htt(p|s))://([\w-]+\.)+[\w-]+(/[\w- ./?%&=]*)*?'
+      $History = Get-Content -Path "$Env:systemdrive\Users\$UserName\AppData\Local\Google\Chrome\User Data\Default\History" | Select-String -AllMatches $URL_Regex | ForEach-Object { $_.Matches.Value } | Sort -Unique
+      $History | Out-File -FilePath "$Env:USERPROFILE\Downloads\chromebrowsinghistory.txt"
+    cleanup_command: |
+      Remove-Item -Path "$Env:USERPROFILE\Downloads\chromebrowsinghistory.txt"
+    name: powershell
+    elevation_required: true

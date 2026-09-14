@@ -1,0 +1,234 @@
+attack_technique: T1491.001
+display_name: 'Defacement: Internal Defacement'
+atomic_tests:
+- name: Replace Desktop Wallpaper
+  auto_generated_guid: 30558d53-9d76-41c4-9267-a7bd5184bed3
+  description: |
+    Downloads an image from a URL and sets it as the desktop wallpaper.
+  supported_platforms:
+  - windows
+  input_arguments:
+    url_of_wallpaper:
+      description: URL pointing to the image file you wish to set as wallpaper
+      type: url
+      default: https://redcanary.com/wp-content/uploads/Atomic-Red-Team-Logo.png
+    pointer_to_orginal_wallpaper:
+      description: Full path to where a file containing the original wallpaper location will be saved
+      type: string
+      default: $env:TEMP\T1491.001-OrginalWallpaperLocation
+    wallpaper_location:
+      description: Full path to where the downloaded wallpaper image will be saved
+      type: string
+      default: $env:TEMP\T1491.001-newWallpaper.png
+  executor:
+    command: |
+      $url = "#{url_of_wallpaper}"
+      $imgLocation = "#{wallpaper_location}"
+      $orgWallpaper = (Get-ItemProperty -Path Registry::'HKEY_CURRENT_USER\Control Panel\Desktop\' -Name WallPaper).WallPaper
+      $orgWallpaper | Out-File -FilePath "#{pointer_to_orginal_wallpaper}"
+      $updateWallpapercode = @' 
+      using System.Runtime.InteropServices; 
+      namespace Win32{
+
+          public class Wallpaper{ 
+              [DllImport("user32.dll", CharSet=CharSet.Auto)] 
+               static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni) ; 
+               
+               public static void SetWallpaper(string thePath){ 
+                  SystemParametersInfo(20,0,thePath,3); 
+              }
+          }
+      } 
+      '@
+      $wc = New-Object System.Net.WebClient  
+      try{  
+          $wc.DownloadFile($url, $imgLocation)
+          add-type $updateWallpapercode 
+          [Win32.Wallpaper]::SetWallpaper($imgLocation)
+      } 
+      catch [System.Net.WebException]{  
+          Write-Host("Cannot download $url") 
+          add-type $updateWallpapercode 
+          [Win32.Wallpaper]::SetWallpaper($imgLocation)
+      } 
+      finally{    
+          $wc.Dispose()  
+      }
+    cleanup_command: |
+      $updateWallpapercode = @' 
+      using System.Runtime.InteropServices; 
+      namespace Win32{
+
+          public class Wallpaper{ 
+              [DllImport("user32.dll", CharSet=CharSet.Auto)] 
+               static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni) ; 
+               
+               public static void SetWallpaper(string thePath){ 
+                  SystemParametersInfo(20,0,thePath,3); 
+              }
+          }
+      } 
+      '@
+      if (Test-Path -Path #{pointer_to_orginal_wallpaper} -PathType Leaf) {
+           $orgImg = Get-Content -Path "#{pointer_to_orginal_wallpaper}"
+           add-type $updateWallpapercode 
+           [Win32.Wallpaper]::SetWallpaper($orgImg)
+      }
+      Remove-Item "#{pointer_to_orginal_wallpaper}" -ErrorAction Ignore
+      Remove-Item "#{wallpaper_location}" -ErrorAction Ignore
+    name: powershell
+- name: Configure LegalNoticeCaption and LegalNoticeText registry keys to display ransom message
+  auto_generated_guid: ffcbfaab-c9ff-470b-928c-f086b326089b
+  description: |
+    Display ransom message to users at system start-up by configuring registry keys HKLM\SOFTWARE\Micosoft\Windows\CurrentVersion\Policies\System\LegalNoticeCaption and HKLM\SOFTWARE\Micosoft\Windows\CurrentVersion\Policies\System\LegalNoticeText.
+
+    [SynAck Ransomware](https://www.trendmicro.com/vinfo/es/security/news/cybercrime-and-digital-threats/synack-ransomware-leverages-process-doppelg-nging-for-evasion-and-infection), 
+    [Grief Ransomware](https://redcanary.com/blog/grief-ransomware/), 
+    [Maze Ransomware](https://cyware.com/research-and-analysis/maze-ransomware-a-deadly-combination-of-data-theft-and-encryption-to-target-us-organizations-8f27),
+    [Pysa Ransomware](https://www.cybereason.com/blog/research/threat-analysis-report-inside-the-destructive-pysa-ransomware),
+    [Spook Ransomware](https://community.fortinet.com/t5/FortiEDR/Threat-Coverage-How-FortiEDR-protects-against-Spook-Ransomware/ta-p/204226),
+    [DopplePaymer Ransomware](https://www.microsoft.com/en-us/wdsi/threats/malware-encyclopedia-description?Name=Ransom:Win32/Dopplepaymer&threatId=-2147221958),
+    [Reedemer Ransomware](https://blog.cyble.com/2022/07/20/redeemer-ransomware-back-action/),
+    [Kangaroo Ransomware](https://www.bleepingcomputer.com/news/security/the-kangaroo-ransomware-not-only-encrypts-your-data-but-tries-to-lock-you-out-of-windows/)
+  supported_platforms:
+  - windows
+  input_arguments:
+    legal_notice_caption:
+      description: Title of ransom message
+      type: string
+      default: PYSA
+    legal_notice_text:
+      description: Body of ransom message
+      type: string
+      default: "Hi Company, every byte on any types of your devices was encrypted. Don't try to use backups because it were encrypted too. To get all your data contact us:xxxx@onionmail.org"
+  executor:
+    command: |-
+      $orgLegalNoticeCaption = (Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LegalNoticeCaption).LegalNoticeCaption
+      $orgLegalNoticeText = (Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LegalNoticeText).LegalNoticeText
+      $newLegalNoticeCaption = "#{legal_notice_caption}"
+      $newLegalNoticeText = "#{legal_notice_text}"
+      Set-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LegalNoticeCaption -Value $newLegalNoticeCaption -Type String -Force
+      Set-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LegalNoticeText -Value $newLegalNoticeText -Type String -Force      
+    cleanup_command: |
+      Set-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LegalNoticeCaption -Value $orgLegalNoticeCaption -Type String -Force
+      Set-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LegalNoticeText -Value $orgLegalNoticeText -Type String -Force
+    name: powershell
+    elevation_required: true
+- name: ESXi - Change Welcome Message on Direct Console User Interface (DCUI)
+  auto_generated_guid: 30905f21-34f3-4504-8b4c-f7a5e314b810
+  description: |
+    Changes the ESXi welcome message to potentially display ransom information.
+    [Reference](https://lolesxi-project.github.io/LOLESXi/lolesxi/Binaries/esxcli/#change%20display%20information)
+  supported_platforms:
+  - windows
+  input_arguments:
+    vm_host:
+      description: Specify the host name or IP of the ESXi server.
+      type: string
+      default: atomic.local
+    vm_user:
+      description: Specify the privilege user account on the ESXi server.
+      type: string
+      default: root
+    vm_pass:
+      description: Specify the privileged user's password.
+      type: string
+      default: password
+    plink_file:
+      description: Path to Plink
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\plink.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Check if we have plink
+    prereq_command: |
+      if (Test-Path "#{plink_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "#{plink_file}"
+  executor:
+    command: |
+      echo "" | "#{plink_file}" -batch "#{vm_host}" -ssh -l #{vm_user} -pw "#{vm_pass}" "esxcli system welcomemsg set -m 'RANSOMWARE-NOTIFICATION'"
+    name: command_prompt
+    elevation_required: false
+
+- name: Windows - Display a simulated ransom note via Notepad (non-destructive)
+  auto_generated_guid: 0eeb68ce-e64c-4420-8d53-ad5bdc6f86d5
+  description: |
+    Creates a temporary ransom-note text file and opens it in Notepad to
+    simulate ransomware "note display" behavior without making destructive
+    changes. SAFE and non-destructive.
+  supported_platforms:
+    - windows
+  input_arguments:
+    note_filename:
+      description: File name for the simulated ransom note
+      type: string
+      default: "ART-T1491-ransom-note.txt"
+    pid_filename:
+      description: File name for storing Notepad PID
+      type: string
+      default: "ART-T1491-notepad.pid"
+    note_title:
+      description: Title at the top of the ransom note
+      type: string
+      default: "!!! READ_ME_NOW !!!"
+    note_body:
+      description: The body of the ransom note (plain text)
+      type: string
+      default: |
+        Your files are SAFE. This is a TEST note for detection validation
+        by bak3n3k0. No data has been encrypted. This simulation exercises
+        detections for:
+          - notepad.exe launched with a ransom-themed text file
+          - creation of a ransom-themed text file in %TEMP%
+        NON-DESTRUCTIVE Atomic Red Team test.
+  dependency_executor_name: command_prompt
+  dependencies:
+    - description: Notepad must be present on the system
+      prereq_command: "where notepad"
+      get_prereq_command: ""
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $notePath = Join-Path $env:TEMP "#{note_filename}"
+      $pidPath  = Join-Path $env:TEMP "#{pid_filename}"
+
+      $Title = "#{note_title}"
+      $Body  = "#{note_body}"
+
+      $header  = $Title + "`r`n" + ('=' * $Title.Length) + "`r`n`r`n"
+      $content = $header + $Body
+
+      [System.IO.File]::WriteAllText($notePath, $content, [System.Text.Encoding]::UTF8)
+
+      $p = Start-Process notepad.exe -ArgumentList "`"$notePath`"" -PassThru
+      $p.Id | Out-File -FilePath $pidPath -Encoding ascii -Force
+    cleanup_command: |
+      try {
+        # 1. Kill all Notepad processes
+        Get-Process notepad -ErrorAction SilentlyContinue |
+          ForEach-Object {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+          }
+
+        # 2. Wait briefly for Windows to release file handles
+        Start-Sleep -Seconds 1
+
+        # 3. Force delete ransom note + PID file
+        $notePath = Join-Path $env:TEMP "ART-T1491-ransom-note.txt"
+        $pidPath  = Join-Path $env:TEMP "ART-T1491-notepad.pid"
+
+        if (Test-Path $notePath) {
+          Remove-Item $notePath -Force -ErrorAction Stop
+        }
+        if (Test-Path $pidPath) {
+          Remove-Item $pidPath -Force -ErrorAction Stop
+        }
+      }
+      catch {
+        Write-Warning "Cleanup failed with error: $_"
+      }
+

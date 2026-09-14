@@ -1,0 +1,224 @@
+attack_technique: T1518.001
+display_name: 'Software Discovery: Security Software Discovery'
+atomic_tests:
+- name: Security Software Discovery
+  auto_generated_guid: f92a380f-ced9-491f-b338-95a991418ce2
+  description: |
+    Methods to identify Security Software on an endpoint
+
+    when sucessfully executed, the test is going to display running processes, firewall configuration on network profiles
+    and specific security software.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      netsh.exe advfirewall  show allprofiles 
+      netsh.exe advfirewall firewall dump
+      netsh.exe advfirewall show currentprofile
+      netsh.exe advfirewall firewall show rule name=all
+      netsh.exe firewall show state
+      netsh.exe firewall show config
+      sc query windefend
+      powershell.exe /c "Get-Process | Where-Object { $_.ProcessName -eq 'Sysmon' }"
+      powershell.exe /c "Get-Service | where-object {$_.DisplayName -like '*sysm*'}"
+      powershell.exe /c "Get-CimInstance Win32_Service -Filter 'Description = ''System Monitor service'''"
+      tasklist.exe
+      tasklist.exe | findstr /i virus
+      tasklist.exe | findstr /i cb
+      tasklist.exe | findstr /i defender
+      tasklist.exe | findstr /i cylance
+      tasklist.exe | findstr /i mc
+      tasklist.exe | findstr /i "virus cb defender cylance mc"
+    name: command_prompt
+- name: Security Software Discovery - powershell
+  auto_generated_guid: 7f566051-f033-49fb-89de-b6bacab730f0
+  description: |
+    Methods to identify Security Software on an endpoint
+
+    when sucessfully executed, powershell is going to processes related AV products if they are running.
+    Note that, depending on the privilege of current user, get-process | ?{$_.Description -like "*"} may not return the processes related to AV products of the check.
+    For instance, only with Administrator right, you can see the process description of McAffee processes. Hence, it is better to use get-process | ?{$_.ProcessName -like "*"},
+    if you know the name of those processes.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      get-process | ?{$_.Description -like "*virus*"}
+      get-process | ?{$_.Description -like "*carbonblack*"}
+      get-process | ?{$_.Description -like "*defender*"}
+      get-process | ?{$_.Description -like "*cylance*"}
+      get-process | ?{$_.Description -like "*mc*"}
+      get-process | ?{$_.ProcessName -like "*mc*"}
+      get-process | Where-Object { $_.ProcessName -eq "Sysmon" }
+    name: powershell
+- name: Security Software Discovery - ps (macOS)
+  auto_generated_guid: ba62ce11-e820-485f-9c17-6f3c857cd840
+  description: |
+    Methods to identify Security Software on an endpoint
+    when sucessfully executed, command shell  is going to display AV/Security software it is running.
+  supported_platforms:
+  - macos
+  executor:
+    command: |
+      ps aux | egrep 'Little\ Snitch|CbOsxSensorService|falcond|nessusd|santad|CbDefense|td-agent|packetbeat|filebeat|auditbeat|osqueryd|BlockBlock|LuLu'
+    name: sh
+- name: Security Software Discovery - ps (Linux)
+  auto_generated_guid: 23b91cd2-c99c-4002-9e41-317c63e024a2
+  description: |
+    Methods to identify Security Software on an endpoint
+    when sucessfully executed, command shell  is going to display AV/Security software it is running.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      ps aux | egrep 'falcond|nessusd|cbagentd|td-agent|packetbeat|filebeat|auditbeat|osqueryd'
+    name: sh
+- name: Security Software Discovery - pgrep (FreeBSD)
+  auto_generated_guid: fa96c21c-5fd6-4428-aa28-51a2fbecdbdc
+  description: |
+    Methods to identify Security Software on an endpoint
+    when sucessfully executed, command shell is going to display AV/Security software it is running.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      pgrep -l 'bareos-fd|icinga2|cbagentd|wazuh-agent|packetbeat|filebeat|osqueryd'
+    name: sh
+- name: Security Software Discovery - Sysmon Service
+  auto_generated_guid: fe613cf3-8009-4446-9a0f-bc78a15b66c9
+  description: |
+    Discovery of an installed Sysinternals Sysmon service using driver altitude (even if the name is changed).
+
+    when sucessfully executed, the test is going to display sysmon driver instance if it is installed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      fltmc.exe | findstr.exe 385201
+    name: command_prompt
+    elevation_required: true
+- name: Security Software Discovery - AV Discovery via WMI
+  auto_generated_guid: 1553252f-14ea-4d3b-8a08-d7a4211aa945
+  description: |
+    Discovery of installed antivirus products via a WMI query.
+
+    when sucessfully executed, the test is going to display installed AV software.
+  supported_platforms:
+  - windows
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      wmic.exe must be available on the system
+    prereq_command: |
+      if (Get-Command wmic.exe -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }
+    get_prereq_command: |
+      DISM /Online /Add-Capability /CapabilityName:WMIC~~~~
+  executor:
+    command: wmic.exe /Namespace:\\root\SecurityCenter2 Path AntiVirusProduct Get displayName /Format:List
+    name: command_prompt
+    elevation_required: true
+- name: Security Software Discovery - AV Discovery via Get-CimInstance and Get-WmiObject cmdlets
+  auto_generated_guid: 015cd268-996e-4c32-8347-94c80c6286ee
+  description: |
+    Discovery of installed antivirus products via Get-CimInstance and Get-WmiObject cmdlets of powershell.
+
+    when sucessfully executed, information about installed AV software is displayed..
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      powershell Get-CimInstance -Namespace root/securityCenter2 -classname antivirusproduct
+      powershell Get-WmiObject -Namespace root\securitycenter2 -Class antivirusproduct
+    name: command_prompt 
+    elevation_required: true
+- name: Security Software Discovery - Windows Defender Enumeration
+  auto_generated_guid: d3415a0e-66ef-429b-acf4-a768876954f6
+  description: |
+    Windows Defender Enumeration via different built-in windows native tools.
+    when sucessfully executed, information about windows defender is displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      Get-Service WinDefend #check the service state of Windows Defender
+      Get-MpComputerStatus #provides the current status of security solution elements, including Anti-Spyware, Antivirus, LoavProtection, Real-time protection, etc
+      Get-MpThreat #threats details that have been detected using MS Defender
+    name: powershell 
+    elevation_required: true
+- name: Security Software Discovery - Windows Firewall Enumeration
+  auto_generated_guid: 9dca5a1d-f78c-4a8d-accb-d6de67cfed6b
+  description: |
+    Enumerates windows firewall to retrieves firewall rules from the target computer.
+
+    when sucessfully executed, details of windows firewall is displayed.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      Get-NetFirewallProfile | Format-Table Name, Enabled
+      Get-NetFirewallSetting
+      Get-NetFirewallRule | select DisplayName, Enabled, Description
+    name: powershell 
+    elevation_required: true
+- name: Get Windows Defender exclusion settings using WMIC
+  auto_generated_guid: e31564c8-4c60-40cd-a8f4-9261307e8336
+  description: |
+    In this test, a WMIC command is used to probe the local Windows system for the configuration of Windows Defender's exclusions. This command targets the MSFT_MpPreference 
+    class within the Windows Management Instrumentation (WMI) namespace, allowing the retrieval of critical settings such as disabled real-time monitoring and specified 
+    exclusion paths, file extensions, and processes. Attackers might use this approach to understand what is excluded from antivirus scans, enabling further exploitation.
+  supported_platforms:
+  - windows
+  executor:
+    name: command_prompt
+    elevation_required: true
+    command: |
+      wmic /Node:localhost /Namespace:\\root\Microsoft\Windows\Defender Path MSFT_MpPreference Get /format:list | findstr /i /C:"DisableRealtimeMonitoring" /C:"ExclusionPath" /C:"ExclusionExtension" /C:"ExclusionProcess"
+- name: Enumerate Windows Defender exclusion paths via MpCmdRun.exe
+  auto_generated_guid: 8eb337ee-fa17-4da7-890a-0204ea470718
+  description: |
+    Determines whether one or more paths are excluded from Microsoft Defender scanning by invoking
+    the signed Microsoft binary MpCmdRun.exe with a custom scan (-ScanType 3) against a
+    deliberately invalid path containing a pipe character. Because Defender evaluates its
+    exclusion list before attempting to scan, an excluded directory reports that scanning
+    "was skipped".
+
+    This does not require administrative privileges, unlike Get-MpPreference, which returns
+    "N/A: Must be an administrator to view exclusions" for unprivileged users. An adversary can
+    therefore map Defender's blind spots as a low-privileged user in order to select a location in
+    which to stage file-based payloads.
+
+    Upon successful execution, excluded paths return "was skipped".
+
+    Reference: https://blog.fndsec.net/2024/10/04/uncovering-exclusion-paths-in-microsoft-defender-a-security-research-insight/
+  supported_platforms:
+  - windows
+  input_arguments:
+    exclusion_paths:
+      description: Comma-separated directories to check against the Defender exclusion list.
+      type: string
+      default: C:\Temp\ARTExclusionTest
+    mpcmdrun_path:
+      description: Path to the Microsoft Defender command line utility.
+      type: path
+      default: C:\Program Files\Windows Defender\MpCmdRun.exe
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      MpCmdRun.exe must be present on the system.
+    prereq_command: |
+      if (Test-Path "#{mpcmdrun_path}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      Write-Host (
+        "MpCmdRun.exe is a native Microsoft Defender component and cannot be installed. " +
+        "It is not present at #{mpcmdrun_path}."
+      )
+  executor:
+    command: |
+      "#{exclusion_paths}".Split(",") | ForEach-Object {
+        $path = $_.Trim()
+        if ($path) {
+          & "#{mpcmdrun_path}" -Scan -ScanType 3 -File "$path\|*"
+        }
+      }
+    name: powershell
+    elevation_required: false
