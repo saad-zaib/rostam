@@ -96,4 +96,4 @@ Test definitions sourced from the [Atomic Red Team](https://github.com/redcanary
 
 ## Disclaimer
 
-This tool is intended for authorized security testing and detection engineering only. Run it on systems you own or have explicit permission to test. The authors are not responsible for misuse.
+This tool is intended for authorized security testing and detection engineering only. Run it on systems you own or have explicit permission to test. The author is not responsible for misuse.
