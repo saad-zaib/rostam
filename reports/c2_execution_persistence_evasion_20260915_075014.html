@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rostam — Execution → Persistence → Defense Evasion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Courier New", Consolas, monospace; background: #000; color: #ccc; padding: 2rem; }
+  .container { max-width: 920px; margin: 0 auto; }
+  .header { background: #0a0a0a; border: 1px solid #ec0000; border-radius: 0; padding: 2rem; margin-bottom: 2rem; }
+  .header h1 { color: #ec0000; font-size: 1.6rem; margin-bottom: 0.3rem; letter-spacing: 4px; text-transform: uppercase; }
+  .header h2 { color: #2979ff; font-size: 1rem; font-weight: normal; margin-bottom: 1rem; }
+  .meta { display: flex; gap: 2rem; color: #777; font-size: 0.85rem; margin-bottom: 1rem; }
+  .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .badge { color: #fff; padding: 4px 12px; border-radius: 2px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+  .chain-flow { position: relative; padding-left: 20px; border-left: 2px solid #ec0000; }
+  .card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 0; margin-bottom: 0; overflow: hidden; }
+  .card-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid #1a1a1a; }
+  .step-num { background: #ec0000; color: #000; width: 26px; height: 26px; border-radius: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+  .tid { font-family: "Courier New", monospace; color: #2979ff; font-weight: 700; font-size: 0.9rem; }
+  .tname { color: #ccc; flex: 1; }
+  .badge-sm { color: #000; padding: 2px 8px; border-radius: 0; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .dur { color: #666; font-size: 0.8rem; font-family: "Courier New", monospace; }
+  .card-body { padding: 0.75rem 1rem; }
+  .test-name { color: #888; font-size: 0.85rem; margin-bottom: 0.4rem; }
+  .desc { color: #666; font-size: 0.8rem; line-height: 1.5; margin-bottom: 0.5rem; }
+  details { margin-top: 0.5rem; }
+  summary { color: #ec0000; font-size: 0.8rem; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  .output { background: #000; color: #00c853; padding: 0.75rem; border: 1px solid #1a1a1a; border-radius: 0; font-size: 0.75rem; line-height: 1.4; overflow-x: auto; margin-top: 0.5rem; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
+  .connector { width: 2px; height: 12px; background: #ec0000; margin: 0 auto; }
+  .legend { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 1rem 1.5rem; margin-top: 2rem; display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 1px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 0; }
+  .layer-link { color: #666; font-size: 0.8rem; margin-top: 1rem; }
+  .layer-link code { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 2px 6px; color: #2979ff; }
+  .footer { text-align: center; color: #333; font-size: 0.75rem; margin-top: 2rem; letter-spacing: 2px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Rostam</h1>
+    <h2>Execution → Persistence → Defense Evasion</h2>
+    <div class="meta">
+      <span>Platform: LINUX</span>
+      <span>Steps: 6</span>
+      <span>Duration: 3.1s</span>
+      <span>2026-09-15 07:50:14</span>
+    </div>
+    <div class="badges">
+      <span class="badge" style="background:#00c853">5 success</span>
+<span class="badge" style="background:#ec0000">1 error</span>
+
+    </div>
+  </div>
+
+  <div class="chain-flow">
+    
+    <div class="card" style="border-left:4px solid #ec0000; background:#1a0808">
+      <div class="card-header">
+        <span class="step-num">1</span>
+        <span class="tid">T1105</span>
+        <span class="tname">Ingress Tool Transfer</span>
+        <span class="badge-sm" style="background:#ec0000">ERROR</span>
+        <span class="dur">0.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">rsync remote file copy (push)</p>
+        <p class="desc">Utilize rsync to perform a remote file copy (push)<br></p>
+        
+            <details>
+              <summary>Output</summary>
+              <pre class="output">ssh: Could not resolve hostname victim-host: Temporary failure in name resolution
+rsync: connection unexpectedly closed (0 bytes received so far) [sender]
+rsync error: unexplained error (code 255) at io.c(232) [sender=3.2.7]
+</pre>
+            </details>
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">2</span>
+        <span class="tid">T1059.004</span>
+        <span class="tname">Command and Scripting Interpreter: Bash</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">3.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Create and Execute Bash Shell Script</p>
+        <p class="desc">Creates and executes a simple sh script.<br></p>
+        
+            <details>
+              <summary>Output</summary>
+              <pre class="output">Hello from the Atomic Red Team
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=7.90 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=117 time=7.80 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=117 time=7.92 ms
+64 bytes from 8.8.8.8: icmp_seq=4 ttl=117 time=7.92 ms
+
+--- 8.8.8.8 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3005ms
+rtt min/avg/max/mdev = 7.803/7.886/7.921/0.048 ms
+</pre>
+            </details>
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">3</span>
+        <span class="tid">T1053.003</span>
+        <span class="tname">Scheduled Task/Job: Cron</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">0.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Cron - Replace crontab with referenced file</p>
+        <p class="desc">This test replaces the current user&#x27;s crontab file with the contents of the referenced file. This technique was used by numerous IoT automated exploitation attacks.<br></p>
+        
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">4</span>
+        <span class="tid">T1036.005</span>
+        <span class="tname">Masquerading: Match Legitimate Name or Location</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">0.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Execute a process from a directory masquerading as the current parent directory</p>
+        <p class="desc">Create and execute a process from a directory masquerading as the current parent directory (`...` instead of normal `..`)<br></p>
+        
+            <details>
+              <summary>Output</summary>
+              <pre class="output">Hello from the Atomic Red Team test T1036.005#1
+</pre>
+            </details>
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">5</span>
+        <span class="tid">T1070.004</span>
+        <span class="tname">Indicator Removal on Host: File Deletion</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">0.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Delete a single file - FreeBSD/Linux/macOS</p>
+        <p class="desc">Delete a single file from the temporary directory<br></p>
+        
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">6</span>
+        <span class="tid">T1070.003</span>
+        <span class="tname">Indicator Removal on Host: Clear Command History</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">0.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Clear Bash history (rm)</p>
+        <p class="desc">Clears bash history via rm<br></p>
+        
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#00c853"></span>success</span>
+<span class="legend-item"><span class="legend-dot" style="background:#ec0000"></span>error</span>
+<span class="legend-item"><span class="legend-dot" style="background:#ff9100"></span>warning</span>
+<span class="legend-item"><span class="legend-dot" style="background:#666"></span>timeout</span>
+<span class="legend-item"><span class="legend-dot" style="background:#555"></span>skipped</span>
+<span class="legend-item"><span class="legend-dot" style="background:#2979ff"></span>manual</span>
+
+  </div>
+
+  <p class="layer-link">Navigator layer: <code>/root/rostam/layers/rostam_20260915_075014.json</code></p>
+
+  <p class="footer">Generated by Rostam — ATT&CK Kill-Chain Telemetry Generator</p>
+</div>
+</body>
+</html>

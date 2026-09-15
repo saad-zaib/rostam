@@ -7,6 +7,7 @@ from datetime import datetime
 
 from lib import menu
 from lib.navigator import save_layer
+from lib.report import save_report
 
 _HARD_ERROR_PATTERNS = [
     "command not found", "no such file", "cannot find",
@@ -39,7 +40,7 @@ class Executor:
         total = len(steps)
         cleanups = []
         nav_results = []
-        counts = {"success": 0, "error": 0, "skipped": 0, "timeout": 0, "manual": 0}
+        counts = {"success": 0, "error": 0, "warning": 0, "skipped": 0, "timeout": 0, "manual": 0}
 
         print(f"\n[*] Executing chain: {chain_name}")
         print(f"[*] Steps: {total}\n")
@@ -90,14 +91,17 @@ class Executor:
                     "technique_id": tid,
                     "technique_name": technique["display_name"],
                     "test_name": test.get("name", "Unnamed"),
+                    "description": test.get("description", ""),
                     "status": result["status"],
                     "duration_seconds": result.get("duration"),
+                    "output_preview": result.get("output_preview", ""),
                 })
                 if result.get("cleanup"):
                     cleanups.append(result["cleanup"])
             else:
                 nav_results.append({"technique_id": tid, "status": "skipped",
-                                     "technique_name": technique["display_name"]})
+                                     "technique_name": technique["display_name"],
+                                     "description": test.get("description", "")})
                 counts["skipped"] += 1
 
             if i < total - 1:
@@ -108,7 +112,7 @@ class Executor:
         print(f"\n{'—' * 50}")
         print(f"[*] Chain '{chain_name}' complete.")
         parts = []
-        for key in ("success", "error", "timeout", "skipped", "manual"):
+        for key in ("success", "error", "warning", "timeout", "skipped", "manual"):
             if counts.get(key, 0) > 0:
                 parts.append(f"{counts[key]} {key}")
         print(f"[*] Results: {', '.join(parts)}")
@@ -116,8 +120,9 @@ class Executor:
 
         if nav_results:
             layer_path = save_layer(self.base_dir, chain_name, nav_results, self.os_platform)
-            print(f"\n[+] Navigator layer saved: {layer_path}")
-            print(f"    Open in: https://mitre-attack.github.io/attack-navigator/")
+            report_path = save_report(self.base_dir, chain_name, nav_results, self.os_platform, layer_path)
+            print(f"\n[+] MITRE Navigator layer: {layer_path}")
+            print(f"[+] HTML report:           {report_path}")
 
         if cleanups:
             print(f"\n[?] {len(cleanups)} cleanup commands available.")
@@ -155,11 +160,15 @@ class Executor:
                 "technique_id": technique_id,
                 "technique_name": technique["display_name"],
                 "test_name": tests[test_index].get("name", "Unnamed"),
+                "description": tests[test_index].get("description", ""),
                 "status": result["status"],
                 "duration_seconds": result.get("duration"),
+                "output_preview": result.get("output_preview", ""),
             }]
             layer_path = save_layer(self.base_dir, technique_id, nav_results, self.os_platform)
-            print(f"\n[+] Navigator layer saved: {layer_path}")
+            report_path = save_report(self.base_dir, technique_id, nav_results, self.os_platform, layer_path)
+            print(f"\n[+] MITRE Navigator layer: {layer_path}")
+            print(f"[+] HTML report:           {report_path}")
 
             if result.get("cleanup"):
                 if menu.confirm("  Run cleanup for this test?"):
@@ -273,7 +282,11 @@ class Executor:
                 "executor": executor_name,
             }
 
-        return {"status": status, "cleanup": cleanup_info, "duration": round(elapsed, 2)}
+        return {
+            "status": status, "cleanup": cleanup_info,
+            "duration": round(elapsed, 2),
+            "output_preview": (result["output"] or "")[:500],
+        }
 
     def _classify_result(self, result):
         """Determine true status from return code + output content."""

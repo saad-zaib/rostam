@@ -1,0 +1,151 @@
+{
+  "name": "Rostam \u2014 Execution \u2192 Persistence \u2192 Defense Evasion",
+  "versions": {
+    "attack": "19",
+    "navigator": "5.3.2",
+    "layer": "4.5"
+  },
+  "domain": "enterprise-attack",
+  "description": "Kill-chain execution: Execution \u2192 Persistence \u2192 Defense Evasion | Platform: linux | 2026-09-15 07:50:14",
+  "filters": {
+    "platforms": [
+      "Linux"
+    ]
+  },
+  "sorting": 3,
+  "layout": {
+    "layout": "side",
+    "aggregateFunction": "average",
+    "showID": true,
+    "showName": true,
+    "showAggregateScores": false,
+    "countUnscored": false
+  },
+  "hideDisabled": false,
+  "techniques": [
+    {
+      "techniqueID": "T1105",
+      "color": "#e6550d",
+      "comment": "[ERROR] rsync remote file copy (push) (0.0s)",
+      "score": 25,
+      "enabled": true,
+      "showSubtechniques": true,
+      "metadata": [
+        {
+          "name": "technique_name",
+          "value": "Ingress Tool Transfer"
+        }
+      ]
+    },
+    {
+      "techniqueID": "T1059.004",
+      "color": "#31a354",
+      "comment": "[SUCCESS] Create and Execute Bash Shell Script (3.0s)",
+      "score": 100,
+      "enabled": true,
+      "showSubtechniques": false,
+      "metadata": [
+        {
+          "name": "technique_name",
+          "value": "Command and Scripting Interpreter: Bash"
+        }
+      ]
+    },
+    {
+      "techniqueID": "T1053.003",
+      "color": "#31a354",
+      "comment": "[SUCCESS] Cron - Replace crontab with referenced file (0.0s)",
+      "score": 100,
+      "enabled": true,
+      "showSubtechniques": false,
+      "metadata": [
+        {
+          "name": "technique_name",
+          "value": "Scheduled Task/Job: Cron"
+        }
+      ]
+    },
+    {
+      "techniqueID": "T1036.005",
+      "color": "#31a354",
+      "comment": "[SUCCESS] Execute a process from a directory masquerading as the current parent directory (0.0s)",
+      "score": 100,
+      "enabled": true,
+      "showSubtechniques": false,
+      "metadata": [
+        {
+          "name": "technique_name",
+          "value": "Masquerading: Match Legitimate Name or Location"
+        }
+      ]
+    },
+    {
+      "techniqueID": "T1070.004",
+      "color": "#31a354",
+      "comment": "[SUCCESS] Delete a single file - FreeBSD/Linux/macOS (0.0s)",
+      "score": 100,
+      "enabled": true,
+      "showSubtechniques": false,
+      "metadata": [
+        {
+          "name": "technique_name",
+          "value": "Indicator Removal on Host: File Deletion"
+        }
+      ]
+    },
+    {
+      "techniqueID": "T1070.003",
+      "color": "#31a354",
+      "comment": "[SUCCESS] Clear Bash history (rm) (0.0s)",
+      "score": 100,
+      "enabled": true,
+      "showSubtechniques": false,
+      "metadata": [
+        {
+          "name": "technique_name",
+          "value": "Indicator Removal on Host: Clear Command History"
+        }
+      ]
+    }
+  ],
+  "gradient": {
+    "colors": [
+      "#e6550d",
+      "#fdae6b",
+      "#31a354"
+    ],
+    "minValue": 0,
+    "maxValue": 100
+  },
+  "legendItems": [
+    {
+      "label": "Success",
+      "color": "#31a354"
+    },
+    {
+      "label": "Warning",
+      "color": "#fdae6b"
+    },
+    {
+      "label": "Error",
+      "color": "#e6550d"
+    },
+    {
+      "label": "Timeout",
+      "color": "#969696"
+    },
+    {
+      "label": "Skipped",
+      "color": "#bdbdbd"
+    },
+    {
+      "label": "Manual",
+      "color": "#6baed6"
+    }
+  ],
+  "showTacticRowBackground": true,
+  "tacticRowBackground": "#205b8f",
+  "selectTechniquesAcrossTactics": true,
+  "selectSubtechniquesWithParent": false,
+  "selectVisibleTechniques": false
+}

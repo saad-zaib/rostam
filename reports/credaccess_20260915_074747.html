@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rostam — Custom Chain</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Courier New", Consolas, monospace; background: #000; color: #ccc; padding: 2rem; }
+  .container { max-width: 920px; margin: 0 auto; }
+  .header { background: #0a0a0a; border: 1px solid #ec0000; border-radius: 0; padding: 2rem; margin-bottom: 2rem; }
+  .header h1 { color: #ec0000; font-size: 1.6rem; margin-bottom: 0.3rem; letter-spacing: 4px; text-transform: uppercase; }
+  .header h2 { color: #2979ff; font-size: 1rem; font-weight: normal; margin-bottom: 1rem; }
+  .meta { display: flex; gap: 2rem; color: #777; font-size: 0.85rem; margin-bottom: 1rem; }
+  .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .badge { color: #fff; padding: 4px 12px; border-radius: 2px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+  .chain-flow { position: relative; padding-left: 20px; border-left: 2px solid #ec0000; }
+  .card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 0; margin-bottom: 0; overflow: hidden; }
+  .card-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid #1a1a1a; }
+  .step-num { background: #ec0000; color: #000; width: 26px; height: 26px; border-radius: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+  .tid { font-family: "Courier New", monospace; color: #2979ff; font-weight: 700; font-size: 0.9rem; }
+  .tname { color: #ccc; flex: 1; }
+  .badge-sm { color: #000; padding: 2px 8px; border-radius: 0; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .dur { color: #666; font-size: 0.8rem; font-family: "Courier New", monospace; }
+  .card-body { padding: 0.75rem 1rem; }
+  .test-name { color: #888; font-size: 0.85rem; margin-bottom: 0.4rem; }
+  .desc { color: #666; font-size: 0.8rem; line-height: 1.5; margin-bottom: 0.5rem; }
+  details { margin-top: 0.5rem; }
+  summary { color: #ec0000; font-size: 0.8rem; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  .output { background: #000; color: #00c853; padding: 0.75rem; border: 1px solid #1a1a1a; border-radius: 0; font-size: 0.75rem; line-height: 1.4; overflow-x: auto; margin-top: 0.5rem; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
+  .connector { width: 2px; height: 12px; background: #ec0000; margin: 0 auto; }
+  .legend { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 1rem 1.5rem; margin-top: 2rem; display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 1px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 0; }
+  .layer-link { color: #666; font-size: 0.8rem; margin-top: 1rem; }
+  .layer-link code { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 2px 6px; color: #2979ff; }
+  .footer { text-align: center; color: #333; font-size: 0.75rem; margin-top: 2rem; letter-spacing: 2px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Rostam</h1>
+    <h2>Custom Chain</h2>
+    <div class="meta">
+      <span>Platform: LINUX</span>
+      <span>Steps: 2</span>
+      <span>Duration: 30.0s</span>
+      <span>2026-09-15 07:47:47</span>
+    </div>
+    <div class="badges">
+      <span class="badge" style="background:#00c853">2 success</span>
+
+    </div>
+  </div>
+
+  <div class="chain-flow">
+    
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">1</span>
+        <span class="tid">T1003.007</span>
+        <span class="tname">OS Credential Dumping: Proc Filesystem</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">30.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Dump individual process memory with sh (Local)</p>
+        <p class="desc">Using `/proc/$PID/mem`, where $PID is the target process ID, use shell utilities to<br>copy process memory to an external file so it can be searched or exfiltrated later.<br></p>
+        
+            <details>
+              <summary>Output</summary>
+              <pre class="output">The password is T1003.007
+dd: /proc/67203/mem: cannot skip to specified offset
+dd: error reading &#x27;/proc/67203/mem&#x27;: Input/output error
+135168+0 records in
+264+0 records out
+135168 bytes (135 kB, 132 KiB) copied, 0.152795 s, 885 kB/s
+grep: /tmp/T1003.007.bin: binary file matches
+</pre>
+            </details>
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid #00c853; background:#0a1a0f">
+      <div class="card-header">
+        <span class="step-num">2</span>
+        <span class="tid">T1003.008</span>
+        <span class="tname">OS Credential Dumping: /etc/passwd, /etc/master.passwd and /etc/shadow</span>
+        <span class="badge-sm" style="background:#00c853">SUCCESS</span>
+        <span class="dur">0.0s</span>
+      </div>
+      <div class="card-body">
+        <p class="test-name">Access /etc/shadow (Local)</p>
+        <p class="desc">/etc/shadow file is accessed in Linux environments<br></p>
+        
+            <details>
+              <summary>Output</summary>
+              <pre class="output">root:*:20614:0:99999:7:::
+daemon:*:20614:0:99999:7:::
+bin:*:20614:0:99999:7:::
+sys:*:20614:0:99999:7:::
+sync:*:20614:0:99999:7:::
+games:*:20614:0:99999:7:::
+man:*:20614:0:99999:7:::
+lp:*:20614:0:99999:7:::
+mail:*:20614:0:99999:7:::
+news:*:20614:0:99999:7:::
+uucp:*:20614:0:99999:7:::
+proxy:*:20614:0:99999:7:::
+www-data:*:20614:0:99999:7:::
+backup:*:20614:0:99999:7:::
+list:*:20614:0:99999:7:::
+irc:*:20614:0:99999:7:::
+_apt:*:20614:0:99999:7:::
+nobody:*:20614:0:99999:7:::
+systemd-network:!*:20614::</pre>
+            </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#00c853"></span>success</span>
+<span class="legend-item"><span class="legend-dot" style="background:#ec0000"></span>error</span>
+<span class="legend-item"><span class="legend-dot" style="background:#ff9100"></span>warning</span>
+<span class="legend-item"><span class="legend-dot" style="background:#666"></span>timeout</span>
+<span class="legend-item"><span class="legend-dot" style="background:#555"></span>skipped</span>
+<span class="legend-item"><span class="legend-dot" style="background:#2979ff"></span>manual</span>
+
+  </div>
+
+  <p class="layer-link">Navigator layer: <code>/root/rostam/layers/rostam_20260915_074747.json</code></p>
+
+  <p class="footer">Generated by Rostam — ATT&CK Kill-Chain Telemetry Generator</p>
+</div>
+</body>
+</html>

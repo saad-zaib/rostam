@@ -1,12 +1,12 @@
 {
-  "name": "Rostam \u2014 Persistence \u2192 Privilege Escalation",
+  "name": "Rostam \u2014 Custom Chain",
   "versions": {
     "attack": "19",
     "navigator": "5.3.2",
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Kill-chain execution: Persistence \u2192 Privilege Escalation | Platform: linux | 2026-09-15 06:16:15",
+  "description": "Kill-chain execution: Custom Chain | Platform: linux | 2026-09-15 07:47:47",
   "filters": {
     "platforms": [
       "Linux"
@@ -24,58 +24,30 @@
   "hideDisabled": false,
   "techniques": [
     {
-      "techniqueID": "T1059.004",
+      "techniqueID": "T1003.007",
       "color": "#31a354",
-      "comment": "[SUCCESS] Create and Execute Bash Shell Script (3.0s)",
+      "comment": "[SUCCESS] Dump individual process memory with sh (Local) (30.0s)",
       "score": 100,
       "enabled": true,
       "showSubtechniques": false,
       "metadata": [
         {
           "name": "technique_name",
-          "value": "Command and Scripting Interpreter: Bash"
+          "value": "OS Credential Dumping: Proc Filesystem"
         }
       ]
     },
     {
-      "techniqueID": "T1053.003",
+      "techniqueID": "T1003.008",
       "color": "#31a354",
-      "comment": "[SUCCESS] Cron - Replace crontab with referenced file (0.0s)",
+      "comment": "[SUCCESS] Access /etc/shadow (Local) (0.0s)",
       "score": 100,
       "enabled": true,
       "showSubtechniques": false,
       "metadata": [
         {
           "name": "technique_name",
-          "value": "Scheduled Task/Job: Cron"
-        }
-      ]
-    },
-    {
-      "techniqueID": "T1222.002",
-      "color": "#e6550d",
-      "comment": "[ERROR] chmod - Change file or folder mode (numeric mode) (0.0s)",
-      "score": 25,
-      "enabled": true,
-      "showSubtechniques": false,
-      "metadata": [
-        {
-          "name": "technique_name",
-          "value": "File and Directory Permissions Modification: FreeBSD, Linux and Mac File and Directory Permissions Modification"
-        }
-      ]
-    },
-    {
-      "techniqueID": "T1548.001",
-      "color": "#e6550d",
-      "comment": "[ERROR] Make and modify binary from C source (0.0s)",
-      "score": 25,
-      "enabled": true,
-      "showSubtechniques": false,
-      "metadata": [
-        {
-          "name": "technique_name",
-          "value": "Abuse Elevation Control Mechanism: Setuid and Setgid"
+          "value": "OS Credential Dumping: /etc/passwd, /etc/master.passwd and /etc/shadow"
         }
       ]
     }
