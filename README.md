@@ -25,15 +25,40 @@ The bootstrap script installs Python 3 and PyYAML if missing, downloads test def
 - **Cross-Platform** — auto-detects OS and filters techniques to those supported on the current platform
 - **Zero CLI Arguments** — fully interactive, menu-driven with arrow-key navigation
 
-## Navigation
+## MITRE ATT&CK Navigator Integration
 
-| Key | Action |
-|-----|--------|
-| `↑` `↓` | Move cursor |
-| `Enter` | Expand sub-techniques / Run |
-| `Space` | Toggle selection |
-| `r` | Run selected techniques |
-| `q` | Back |
+After every chain or single technique execution, Rostam generates a **Navigator layer JSON file** compatible with the [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/). Each executed technique is color-coded by result:
+
+| Color | Status |
+|-------|--------|
+| Green | Success |
+| Red | Error |
+| Orange | Warning |
+| Grey | Timeout / Skipped |
+| Blue | Manual |
+
+**To visualize:**
+1. Run a chain or technique in Rostam
+2. Open [mitre-attack.github.io/attack-navigator](https://mitre-attack.github.io/attack-navigator/)
+3. Click **Open Existing Layer** → **Upload from local**
+4. Select the generated `.json` file from `layers/`
+
+Layer files are saved as `layers/rostam_<timestamp>.json`.
+
+## HTML Reports
+
+Every execution also generates a standalone HTML report in `reports/`. Open it in any browser — no external dependencies needed.
+
+Reports include:
+- Chain summary with color-coded status badges
+- Per-technique cards with technique ID, name, description, status, and duration
+- Expandable output preview for each test
+- Reference to the corresponding Navigator layer file
+
+Report filenames use kill-chain phase names for easy identification:
+```
+reports/discovery_credaccess_collection_exfil_20260915_073035.html
+```
 
 ## Project Structure
 
@@ -47,45 +72,16 @@ rostam/
 │   ├── executor.py         # Test execution with error classification
 │   ├── atomics.py          # Test definition download and indexing
 │   ├── chains.py           # Chain loader
-│   └── log_writer.py       # JSONL logger
+│   ├── log_writer.py       # JSONL logger
+│   ├── navigator.py        # ATT&CK Navigator layer generator
+│   └── report.py           # HTML report generator
 ├── chains/
 │   ├── linux/              # 5 prebuilt Linux chains
 │   └── windows/            # 5 prebuilt Windows chains
+├── layers/                 # Navigator layer JSON files
+├── reports/                # HTML execution reports
 ├── logs/                   # Execution logs (JSONL)
 └── atomics/                # Test definitions (downloaded on first run)
-```
-
-## Custom Chains
-
-Drop YAML files in `chains/linux/` or `chains/windows/` to add your own chains:
-
-```yaml
-name: My Chain
-description: Custom recon chain
-steps:
-  - technique: T1082
-    name: System Information Discovery
-    delay: 5
-  - technique: T1033
-    name: System Owner/User Discovery
-    delay: 3
-```
-
-## Logging
-
-Execution logs are written to `logs/` as JSONL files. Each line contains:
-
-```json
-{
-  "technique_id": "T1082",
-  "technique_name": "System Information Discovery",
-  "test_name": "System Information Discovery",
-  "status": "success",
-  "start_time": "2025-01-15T10:30:00",
-  "end_time": "2025-01-15T10:30:01",
-  "duration_seconds": 0.85,
-  "output_preview": "Linux hostname 6.1.0..."
-}
 ```
 
 ## Requirements
