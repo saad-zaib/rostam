@@ -6,6 +6,7 @@ import traceback
 from datetime import datetime
 
 from lib import menu
+from lib.navigator import save_layer
 
 _HARD_ERROR_PATTERNS = [
     "command not found", "no such file", "cannot find",
@@ -19,12 +20,13 @@ _WARN_PATTERNS = [
 
 
 class Executor:
-    def __init__(self, atomics, log_writer, os_platform):
+    def __init__(self, atomics, log_writer, os_platform, base_dir="."):
         self.atomics = atomics
         self.log = log_writer
         self.os_platform = os_platform
         self.delay = 5
         self.atomics_dir = atomics.atomics_dir
+        self.base_dir = base_dir
 
     def set_delay(self, seconds):
         self.delay = seconds
@@ -36,6 +38,7 @@ class Executor:
         steps = chain["steps"]
         total = len(steps)
         cleanups = []
+        nav_results = []
         counts = {"success": 0, "error": 0, "skipped": 0, "timeout": 0, "manual": 0}
 
         print(f"\n[*] Executing chain: {chain_name}")
@@ -56,6 +59,7 @@ class Executor:
                     "step_name": step_name, "status": "skipped",
                     "reason": "not in index", "timestamp": datetime.now().isoformat(),
                 })
+                nav_results.append({"technique_id": tid, "status": "skipped", "step_name": step_name})
                 counts["skipped"] += 1
                 continue
 
@@ -75,14 +79,25 @@ class Executor:
                     "status": "error", "reason": f"unhandled exception: {exc}",
                     "timestamp": datetime.now().isoformat(),
                 })
+                nav_results.append({"technique_id": tid, "status": "error",
+                                     "test_name": test.get("name", "Unnamed")})
                 counts["error"] += 1
                 continue
 
             if result:
                 counts[result["status"]] = counts.get(result["status"], 0) + 1
+                nav_results.append({
+                    "technique_id": tid,
+                    "technique_name": technique["display_name"],
+                    "test_name": test.get("name", "Unnamed"),
+                    "status": result["status"],
+                    "duration_seconds": result.get("duration"),
+                })
                 if result.get("cleanup"):
                     cleanups.append(result["cleanup"])
             else:
+                nav_results.append({"technique_id": tid, "status": "skipped",
+                                     "technique_name": technique["display_name"]})
                 counts["skipped"] += 1
 
             if i < total - 1:
@@ -98,6 +113,11 @@ class Executor:
                 parts.append(f"{counts[key]} {key}")
         print(f"[*] Results: {', '.join(parts)}")
         print(f"{'—' * 50}")
+
+        if nav_results:
+            layer_path = save_layer(self.base_dir, chain_name, nav_results, self.os_platform)
+            print(f"\n[+] Navigator layer saved: {layer_path}")
+            print(f"    Open in: https://mitre-attack.github.io/attack-navigator/")
 
         if cleanups:
             print(f"\n[?] {len(cleanups)} cleanup commands available.")
@@ -130,14 +150,25 @@ class Executor:
             })
             return
 
-        if result and result.get("cleanup"):
-            if menu.confirm("  Run cleanup for this test?"):
-                info = result["cleanup"]
-                r = self._run_command(info["command"], info["executor"])
-                if r["returncode"] == 0:
-                    print("    [+] Cleanup done.")
-                else:
-                    print(f"    [!] Cleanup failed (exit code {r['returncode']}).")
+        if result:
+            nav_results = [{
+                "technique_id": technique_id,
+                "technique_name": technique["display_name"],
+                "test_name": tests[test_index].get("name", "Unnamed"),
+                "status": result["status"],
+                "duration_seconds": result.get("duration"),
+            }]
+            layer_path = save_layer(self.base_dir, technique_id, nav_results, self.os_platform)
+            print(f"\n[+] Navigator layer saved: {layer_path}")
+
+            if result.get("cleanup"):
+                if menu.confirm("  Run cleanup for this test?"):
+                    info = result["cleanup"]
+                    r = self._run_command(info["command"], info["executor"])
+                    if r["returncode"] == 0:
+                        print("    [+] Cleanup done.")
+                    else:
+                        print(f"    [!] Cleanup failed (exit code {r['returncode']}).")
 
     # ── internal helpers ────────────────────────────────────
 
@@ -242,7 +273,7 @@ class Executor:
                 "executor": executor_name,
             }
 
-        return {"status": status, "cleanup": cleanup_info}
+        return {"status": status, "cleanup": cleanup_info, "duration": round(elapsed, 2)}
 
     def _classify_result(self, result):
         """Determine true status from return code + output content."""

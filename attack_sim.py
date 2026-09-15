@@ -318,7 +318,7 @@ def main():
 
     atomics.load_index()
     chains = ChainLoader(BASE_DIR, os_platform)
-    executor = Executor(atomics, log_writer, os_platform)
+    executor = Executor(atomics, log_writer, os_platform, base_dir=BASE_DIR)
 
     while True:
         choice = menu.print_menu("Main Menu", [
