@@ -16,6 +16,13 @@ from lib.chains import ChainLoader       # noqa: E402
 from lib.executor import Executor        # noqa: E402
 from lib.log_writer import LogWriter     # noqa: E402
 
+R = "\033[91m"
+B = "\033[94m"
+G = "\033[92m"
+W = "\033[1;97m"
+D = "\033[2m"
+X = "\033[0m"
+
 
 def detect_platform():
     s = platform.system().lower()
@@ -161,7 +168,7 @@ def technique_picker(atomics, os_platform, multi=True):
 def run_prebuilt_chain(chains, executor):
     chain_list = chains.list_chains()
     if not chain_list:
-        print("\n  [!] No prebuilt chains found for this platform.")
+        print(f"\n  {R}[!]{X} No prebuilt chains found for this platform.")
         menu.pause()
         return
 
@@ -178,17 +185,17 @@ def run_prebuilt_chain(chains, executor):
         chain = None
 
     if not chain:
-        print("  [!] Invalid selection.")
+        print(f"  {R}[!]{X} Invalid selection.")
         menu.pause()
         return
 
-    print(f"\n  Chain : {chain['name']}")
-    print(f"  Desc  : {chain.get('description', '')}")
-    print("  Steps :")
+    print(f"\n  {W}Chain :{X} {chain['name']}")
+    print(f"  {D}Desc  :{X} {chain.get('description', '')}")
+    print(f"  {D}Steps :{X}")
     for i, step in enumerate(chain["steps"]):
-        print(f"    {i + 1}. [{step['technique']}] {step.get('name', '')}")
+        print(f"    {R}{i + 1}. [{step['technique']}]{X} {step.get('name', '')}")
 
-    if menu.confirm("\n  Execute this chain?"):
+    if menu.confirm(f"\n  {W}Execute this chain?{X}"):
         executor.run_chain(chain)
     menu.pause()
 
@@ -208,11 +215,13 @@ def build_custom_chain(atomics, executor, os_platform):
         return
 
     menu.clear_screen()
-    print(f"\n  Custom chain ({len(steps)} steps):")
+    print(f"\n  {W}Custom chain{X} {D}({len(steps)} steps){X}")
+    print(f"  {R}{'━' * 50}{X}")
     for i, s in enumerate(steps):
-        print(f"    {i + 1}. [{s['technique']}] {s['name']}")
+        print(f"    {R}{i + 1}. [{s['technique']}]{X} {s['name']}")
+    print(f"  {R}{'━' * 50}{X}")
 
-    if menu.confirm(f"\n  Execute?"):
+    if menu.confirm(f"\n  {W}Execute?{X}"):
         executor.run_chain({"name": "Custom Chain", "description": "User-built", "steps": steps})
     menu.pause()
 
@@ -232,14 +241,13 @@ def run_single_technique(atomics, executor, os_platform):
     if len(tests) == 1:
         test_idx = 0
     else:
-        # Quick test picker
         menu.clear_screen()
-        print(f"\n  {tid} — {technique['display_name']}")
-        print(f"  Tests ({len(tests)}):\n")
+        print(f"\n  {R}{tid}{X} {D}—{X} {W}{technique['display_name']}{X}")
+        print(f"  {D}Tests ({len(tests)}):{X}\n")
         for i, t in enumerate(tests):
             exe = t.get("executor", {}).get("name", "?")
-            print(f"    [{i}] {t.get('name', 'Unnamed')}  ({exe})")
-        test_idx = menu.get_number("\n  Select test", 0)
+            print(f"    {R}[{W}{i}{R}]{X} {t.get('name', 'Unnamed')}  {D}({exe}){X}")
+        test_idx = menu.get_number(f"\n  {W}Select test{X}", 0)
         if test_idx is None or not (0 <= test_idx < len(tests)):
             test_idx = 0
 
@@ -248,11 +256,11 @@ def run_single_technique(atomics, executor, os_platform):
     overrides = {}
     inputs = test.get("input_arguments", {})
     if inputs:
-        print("\n  Input arguments (Enter to keep default):")
+        print(f"\n  {D}Input arguments (Enter to keep default):{X}")
         for arg, defn in inputs.items():
             default = defn.get("default", "")
-            print(f"    {arg}: {defn.get('description', '')}")
-            val = input(f"      [{default}] > ").strip()
+            print(f"    {R}{arg}{X}: {D}{defn.get('description', '')}{X}")
+            val = input(f"      {D}[{default}]{X} {R}▸{X} ").strip()
             if val:
                 overrides[arg] = val
 
@@ -263,7 +271,7 @@ def run_single_technique(atomics, executor, os_platform):
 def view_logs(log_writer):
     logs = log_writer.list_logs()
     if not logs:
-        print("\n  [!] No logs yet.")
+        print(f"\n  {R}[!]{X} No logs yet.")
         menu.pause()
         return
 
@@ -279,17 +287,20 @@ def view_logs(log_writer):
     except (ValueError, IndexError):
         return
 
-    print(f"\n  {'—' * 55}")
+    _STATUS_CLR = {"SUCCESS": G, "ERROR": R, "WARNING": "\033[93m", "TIMEOUT": D, "SKIPPED": D, "MANUAL": B}
+    print(f"\n  {R}{'━' * 60}{X}")
     for e in entries:
         status = e.get("status", "?").upper()
         tid = e.get("technique_id", "?")
         name = e.get("test_name", e.get("step_name", e.get("technique_name", "?")))
         ts = e.get("start_time", e.get("timestamp", ""))
         dur = e.get("duration_seconds")
-        dur_s = f" ({dur:.1f}s)" if isinstance(dur, (int, float)) else ""
-        print(f"  [{status:7s}] {tid:12s} {name}{dur_s}")
+        dur_s = f" {D}({dur:.1f}s){X}" if isinstance(dur, (int, float)) else ""
+        sc = _STATUS_CLR.get(status, D)
+        print(f"  {sc}[{status:7s}]{X} {R}{tid:12s}{X} {name}{dur_s}")
         if ts:
-            print(f"            {ts}")
+            print(f"  {D}           {ts}{X}")
+    print(f"  {R}{'━' * 60}{X}")
     menu.pause()
 
 
@@ -300,10 +311,7 @@ def main():
     os_platform = detect_platform()
 
     menu.clear_screen()
-    print(f"\n{'=' * 60}")
-    print("   Rostam — ATT&CK Kill-Chain Telemetry Generator")
-    print(f"   Platform: {os_platform.upper()}")
-    print(f"{'=' * 60}")
+    menu.print_logo(os_platform)
 
     atomics = AtomicsManager(BASE_DIR, os_platform)
     log_writer = LogWriter(BASE_DIR)
@@ -344,7 +352,7 @@ def main():
                 executor.set_delay(d)
                 print(f"  [+] Delay set to {d}s")
         elif choice == "0":
-            print("\n  [*] Done. Stay safe.\n")
+            print(f"\n  {R}[*]{X} Done. Stay safe.\n")
             break
 
 
